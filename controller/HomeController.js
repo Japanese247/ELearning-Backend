@@ -270,19 +270,22 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
       .map((teacher) => {
         const teacherId = teacher?.userId?._id?.toString();
         const lessonInfo = lessonsMap[teacherId];
-
-        if (!lessonInfo) return null;
-
         return {
           ...teacher,
-          lowestLesson: lessonInfo.lowestLesson,
-          totalLessons: lessonInfo.count,
+          lowestLesson: lessonInfo?.lowestLesson || null,
+          totalLessons: lessonInfo?.count || 0,
         };
       })
-      .filter(Boolean)
-      .filter((teacher) =>
-        matchesAvailability(teacher.userId._id.toString())
-    ); // Remove teachers with 0 lessons or unmatched user
+      
+    .filter((teacher) => {
+        const noAvailabilityFilter = selectedDays.length === 0 && selectedSlots.length === 0;
+
+        // ✅ Case: English selected + no availability filters → allow all
+        if (isEnglish && noAvailabilityFilter) return true;
+
+        // ❌ Default: remove teachers with 0 lessons
+        return teacher.totalLessons > 0;
+      })// Remove teachers with 0 lessons or unmatched user
 
     if (!finalTeachers.length) {
       return validationErrorResponse(res, "No teacher with lessons found", 400);

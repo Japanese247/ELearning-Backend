@@ -54,9 +54,10 @@ module.exports = () => {
         // console.log("nowTime",nowTime);
         // console.log("diffInMinutes",diffInMinutes);
         let time = null;
-        if (diffInMinutes === 1440) time = "24 hours";
-        else if (diffInMinutes === 120) time = "2 hours";
-        else if (diffInMinutes === 30) time = "30 minutes";
+        // if (diffInMinutes === 1440) time = "24 hours";
+        // else if (diffInMinutes === 120) time = "2 hours";
+        // else if (diffInMinutes === 30) time = "30 minutes";
+        if (diffInMinutes === 30) time = "30 minutes";
         else if (diffInMinutes === 5) time = "5 minutes";
         else continue; // skip if not one of the 4 target intervals
         let zoomLink = null;
