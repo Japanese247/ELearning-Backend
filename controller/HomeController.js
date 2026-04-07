@@ -308,8 +308,9 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
       // Case 3: Neither has rank -> sort by createdAt (latest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
+    const unblockedTeacher = finalTeachers.filter((t)=>t?.userId !== null)
 
-    return successResponse(res, "Teachers fetched with reviews and lessons", 200, finalTeachers);
+    return successResponse(res, "Teachers fetched with reviews and lessons", 200, unblockedTeacher);
   } catch (error) {
     logger.error(error);
     return errorResponse(res, error.message || "Internal Server Error", 500);
