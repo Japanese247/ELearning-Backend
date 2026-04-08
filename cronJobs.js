@@ -21,12 +21,13 @@ const MessageTemplate = require("./EmailTemplate/Message");
 const { getValidGoogleClient } = require("./utils/GoogleCalendar");
 
 module.exports = () => {
+
   cron.schedule("* * * * *", async () => {
     try {
       // console.log(`Running cron job at ${new Date().toISOString()}`);
       const now = new Date(); // current time in UTC
       const endNow = DateTime.utc().startOf("minute"); // e.g., 13:42:00
-
+      console.log("crons started");
       const data = await Bookings.find({
         startDateTime: { $gt: now },
         cancelled: false,
@@ -40,7 +41,6 @@ module.exports = () => {
       // console.log("data",data);
 
       const registrationSubject = "Reminder for Booking ⏰";
-
       for (const booking of data) {
         const objectId = new mongoose.Types.ObjectId(booking?.teacherId?._id);
         const teacherData = await Teacher.findOne({ userId: objectId });
@@ -53,17 +53,26 @@ module.exports = () => {
         // console.log("startUTC",startUTC);
         // console.log("nowTime",nowTime);
         // console.log("diffInMinutes",diffInMinutes);
-        let time = null;
+        let time = diffInMinutes;
         // if (diffInMinutes === 1440) time = "24 hours";
         // else if (diffInMinutes === 120) time = "2 hours";
         // else if (diffInMinutes === 30) time = "30 minutes";
-        if (diffInMinutes === 30) time = "30 minutes";
-        else if (diffInMinutes === 5) time = "5 minutes";
-        else continue; // skip if not one of the 4 target intervals
-        let zoomLink = null;
+         
+        if (diffInMinutes <= 30 && diffInMinutes >= 0 && !booking.zoom) {
+          if(diffInMinutes > 1){
+            time = `${diffInMinutes} minutes`;
+          } else { 
+            time = `just a moment`;
+          }
+          console.log("crons executed for zoom link");
+        } else {
+          console.log("crons ended with continue");
+          continue;
 
-        // Zoom Code
-        if (diffInMinutes === 30 || (diffInMinutes === 5 && !booking.zoom)) {
+        }
+ 
+        let zoomLink = null;
+        async function createBookingLink () { 
           console.log(`Creating Zoom meeting for booking ID: ${booking._id}`);
           logger.info(`Creating Zoom meeting for booking ID: ${booking._id}`);
 
@@ -91,12 +100,12 @@ module.exports = () => {
             teacherData,
             Teacher
           );
+
           if (!result?.meeting_id) {
-            logger.error(
-              `❌ Failed to create meeting for booking ${booking._id}`
-            );
-            continue; // skip email sending if meeting wasn't created
+            logger.error(`❌ Failed to create meeting for booking ${booking._id}`)
+            return; 
           }
+
           zoomLink = result?.meeting_url || "";
           // console.log("result",result);
           logger.info(
@@ -112,10 +121,12 @@ module.exports = () => {
           booking.zoom = zoomResult._id; // Save the Zoom meeting ID in the booking
           await booking.save();
         }
-        logger.info("Sending email for booking", booking._id);
-        // console.log("Sending email for booking",booking._id);
-        // continue;
 
+        if (!booking.zoom) {
+          await createBookingLink();
+        }
+
+        logger.info("Sending email for booking", booking._id);
         const user = booking?.UserId;
         const teacher = booking?.teacherId;
         const lesson = booking?.LessonId;
@@ -236,6 +247,222 @@ module.exports = () => {
       logger.error("Error in cron job", error);
     }
   });
+
+  // cron.schedule("* * * * *", async () => {
+  //   try {
+  //     // console.log(`Running cron job at ${new Date().toISOString()}`);
+  //     const now = new Date(); // current time in UTC
+  //     const endNow = DateTime.utc().startOf("minute"); // e.g., 13:42:00
+
+  //     const data = await Bookings.find({
+  //       startDateTime: { $gt: now },
+  //       cancelled: false,
+  //       // _id: "68924c90795dd1d2abaee90a",
+  //     })
+  //       .populate("teacherId")
+  //       .populate("UserId")
+  //       .populate("LessonId")
+  //       .populate("zoom")
+  //       .sort({ startDateTime: 1 });
+  //     // console.log("data",data);
+
+  //     const registrationSubject = "Reminder for Booking ⏰";
+
+  //     for (const booking of data) {
+  //       const objectId = new mongoose.Types.ObjectId(booking?.teacherId?._id);
+  //       const teacherData = await Teacher.findOne({ userId: objectId });
+  //       // console.log("TeacherData",teacherData);
+  //       const nowTime = DateTime.utc();
+  //       const startUTC = DateTime.fromJSDate(booking.startDateTime).toUTC();
+  //       const diffInMinutes = Math.round(
+  //         startUTC.diff(nowTime, "minutes").minutes
+  //       );
+  //       // console.log("startUTC",startUTC);
+  //       // console.log("nowTime",nowTime);
+  //       // console.log("diffInMinutes",diffInMinutes);
+  //       let time = null;
+  //       // if (diffInMinutes === 1440) time = "24 hours";
+  //       // else if (diffInMinutes === 120) time = "2 hours";
+  //       // else if (diffInMinutes === 30) time = "30 minutes";
+  //       if (diffInMinutes === 30) time = "30 minutes";
+  //       // else if (diffInMinutes === 5) time = "5 minutes";
+  //       else continue; // skip if not one of the 4 target intervals
+  //       let zoomLink = null;
+
+  //       // Zoom Code
+  //       if (diffInMinutes < 30 && !booking.zoom){
+  //         console.log(`Creating Zoom meeting for booking ID: ${booking._id}`);
+  //         logger.info(`Creating Zoom meeting for booking ID: ${booking._id}`);
+
+  //         // Generate a safe random password (>= 8 alphanumeric chars)
+  //         const generatedPassword = Math.random().toString(36).slice(-8);
+  //         const meetingDetails = {
+  //           topic: booking?.LessonId?.title || "Lesson booking",
+  //           type: 2, // Scheduled meeting
+  //           start_time: booking.startDateTime.toISOString(),
+  //           duration: booking?.LessonId?.duration || 60,
+  //           password: generatedPassword,
+  //           timezone: "UTC",
+  //           settings: {
+  //             auto_recording: "cloud",
+  //             host_video: true,
+  //             participant_video: true,
+  //             mute_upon_entry: true,
+  //             join_before_host: true,
+  //             waiting_room: false,
+  //           },
+  //         };
+  //         // const result = await createZoomMeeting(meetingDetails);
+  //         const result = await createZoomMeeting(
+  //           meetingDetails,
+  //           teacherData,
+  //           Teacher
+  //         );
+  //         if (!result?.meeting_id) {
+  //           logger.error(
+  //             `❌ Failed to create meeting for booking ${booking._id}`
+  //           );
+  //           continue; // skip email sending if meeting wasn't created
+  //         }
+  //         zoomLink = result?.meeting_url || "";
+  //         // console.log("result",result);
+  //         logger.info(
+  //           "Meeting link generated successfully with",
+  //           result?.meeting_id
+  //         );
+  //         // console.log("Sending email for booking",booking._id);
+  //         const zoomRecord = new Zoom({
+  //           meetingId: result?.meeting_id || "",
+  //           meetingLink: result?.meeting_url || "",
+  //         });
+  //         const zoomResult = await zoomRecord.save();
+  //         booking.zoom = zoomResult._id; // Save the Zoom meeting ID in the booking
+  //         await booking.save();
+  //       }
+  //       logger.info("Sending email for booking", booking._id);
+  //       // console.log("Sending email for booking",booking._id);
+  //       // continue;
+
+  //       const user = booking?.UserId;
+  //       const teacher = booking?.teacherId;
+  //       const lesson = booking?.LessonId;
+
+  //       const userName = user?.name || "";
+  //       const teacherName = teacher?.name || "";
+  //       const lessonName = lesson?.title || "";
+
+  //       // Sending email to student
+  //       const emailHtml = Reminder(
+  //         userName,
+  //         zoomLink ||
+  //           booking.zoom?.meetingLink ||
+  //           "https://akitainakaschoolonline.com/student/lessons",
+  //         time,
+  //         teacherName,
+  //         lessonName
+  //       );
+
+  //       await sendEmail({
+  //         email: user.email,
+  //         subject: registrationSubject,
+  //         emailHtml: emailHtml,
+  //       });
+
+  //       logger.info(`📧 Reminder email sent to user ${user.email}`);
+
+  //       // Sending email to teacher
+  //       const TeacherEmailHtml = TeacherReminder(
+  //         userName,
+  //         zoomLink ||
+  //           booking.zoom?.meetingLink ||
+  //           "https://akitainakaschoolonline.com/teacher-dashboard/booking",
+  //         time,
+  //         teacherName,
+  //         lessonName
+  //       );
+
+  //       await sendEmail({
+  //         email: teacher.email,
+  //         subject: registrationSubject,
+  //         emailHtml: TeacherEmailHtml,
+  //       });
+
+  //       logger.info(`📧 Reminder email sent to teacher ${teacher.email}`);
+  //     }
+
+  //     // Sending lesson done emails to user and teacher
+  //     const justEndedBookings = await Bookings.find({
+  //       cancelled: false,
+  //       endDateTime: {
+  //         $gte: endNow.toJSDate(),
+  //         $lt: endNow.plus({ minutes: 1 }).toJSDate(), // match to current minute
+  //       },
+  //       // "_id": "686271edc0b8706b75e81101",
+  //     })
+  //       .populate("teacherId")
+  //       .populate("UserId")
+  //       .populate("LessonId");
+
+  //     // console.log("justEndedBookings",justEndedBookings);
+  //     for (const booking of justEndedBookings) {
+  //       const user = booking?.UserId;
+  //       const teacher = booking?.teacherId;
+
+  //       const userName = user?.name || "";
+  //       const teacherName = teacher?.name || "";
+
+  //       // const token = jwt.sign(
+  //       //   { BookingId: booking._id, UserId: booking?.UserId },
+  //       //   process.env.JWT_SECRET_KEY,
+  //       //   { expiresIn: process.env.JWT_EXPIRES_IN || "365d" }
+  //       // );
+
+  //       // const studentDoneEmailHtml = StudentLessonDone(
+  //       //   userName,
+  //       //   teacherName,
+  //       //   `https://akitainakaschoolonline.com/confirm-lesson/${token}`
+  //       // );
+
+  //       // await sendEmail({
+  //       //   email: user.email,
+  //       //   subject: "Please confirm your lesson completion ✅",
+  //       //   emailHtml: studentDoneEmailHtml,
+  //       // });
+
+  //       // logger.info(`📧 StudentLessonDone email sent to ${user.email} for booking ${booking._id}`);
+  //       // console.log(`📧 StudentLessonDone email sent to ${user.email} for booking ${booking._id}`);
+
+  //       // Lesson done email to teacher
+  //       const teacherToken = jwt.sign(
+  //         { BookingId: booking._id, teacherId: booking?.teacherId },
+  //         process.env.JWT_SECRET_KEY,
+  //         { expiresIn: process.env.JWT_EXPIRES_IN || "365d" }
+  //       );
+
+  //       const teacherDoneEmailHtml = TeacherLessonDone(
+  //         userName,
+  //         teacherName,
+  //         `https://akitainakaschoolonline.com/confirm-lesson/${teacherToken}`
+  //       );
+
+  //       await sendEmail({
+  //         email: teacher.email,
+  //         subject: "Please confirm your lesson completion ✅",
+  //         emailHtml: teacherDoneEmailHtml,
+  //       });
+
+  //       logger.info(
+  //         `📧 TeacherLessonDone email sent to ${teacher.email} for booking ${booking._id}`
+  //       );
+  //       console.log(
+  //         `📧 TeacherLessonDone email sent to ${teacher.email} for booking ${booking._id}`
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.log("Error in cron job", error);
+  //     logger.error("Error in cron job", error);
+  //   }
+  // });
 
   // Cleanup old availability - daily at 1 AM
   cron.schedule("0 1 * * *", async () => {
