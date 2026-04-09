@@ -14,7 +14,7 @@ const sendEmail = async (data) => {
     });
 
     const mailOptions = {
-        from: `"Japanese For Me" <${process.env.MAIL_USERNAME}>`,
+        from: `"AkitaInakaSchoolOnline" <${process.env.MAIL_USERNAME}>`,
         to: email,
         subject: subject,
         html: emailHtml,

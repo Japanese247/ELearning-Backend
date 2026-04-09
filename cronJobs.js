@@ -618,7 +618,7 @@ module.exports = () => {
           },
           extendedProperties: {
             private: {
-              source: "japaneseforme",
+              source: "AkitaInakaSchoolOnline",
               bookingId: booking._id.toString(),
               teacherId: teacher._id.toString(),
             },
