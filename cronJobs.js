@@ -19,6 +19,7 @@ const Message = require("./model/message");
 const User = require("./model/user");
 const MessageTemplate = require("./EmailTemplate/Message");
 const { getValidGoogleClient } = require("./utils/GoogleCalendar");
+const FailedZoomLinkCreation = require("./EmailTemplate/FailedZoomLinkCreation");
 
 module.exports = () => {
 
@@ -38,7 +39,7 @@ module.exports = () => {
         .populate("LessonId")
         .populate("zoom")
         .sort({ startDateTime: 1 });
-      // console.log("data",data);
+          
 
       const registrationSubject = "Reminder for Booking ⏰";
       for (const booking of data) {
@@ -68,7 +69,6 @@ module.exports = () => {
         } else {
           console.log("crons ended with continue");
           continue;
-
         }
  
         let zoomLink = null;
@@ -93,7 +93,7 @@ module.exports = () => {
               join_before_host: true,
               waiting_room: false,
             },
-          };
+          }; 
           // const result = await createZoomMeeting(meetingDetails);
           const result = await createZoomMeeting(
             meetingDetails,
@@ -102,7 +102,17 @@ module.exports = () => {
           );
 
           if (!result?.meeting_id) {
+            const creationFailedTemplate = FailedZoomLinkCreation(result);
+            await sendEmail({
+              email: 'mern.dev.fp02@gmail.com',
+              subject: 'Unable to create zoom link',
+              emailHtml: creationFailedTemplate,
+            });
+
+            logger.error(`----------------------------------------------`)
             logger.error(`❌ Failed to create meeting for booking ${booking._id}`)
+            logger.error(`${result}`)
+            logger.error(`----------------------------------------------`)
             return; 
           }
 
@@ -136,42 +146,46 @@ module.exports = () => {
         const lessonName = lesson?.title || "";
 
         // Sending email to student
-        const emailHtml = Reminder(
-          userName,
-          zoomLink ||
-            booking.zoom?.meetingLink ||
-            "https://akitainakaschoolonline.com/student/lessons",
-          time,
-          teacherName,
-          lessonName
-        );
+        if(booking.zoom){ 
+          logger.info(`📧 Reminder email sent to user ${user.email} for this booking ${booking?._id}`);
+          const emailHtml = Reminder(
+            userName,
+            zoomLink ||
+              booking.zoom?.meetingLink ||
+              "https://akitainakaschoolonline.com/student/lessons",
+            time,
+            teacherName,
+            lessonName
+          );
+          await sendEmail({
+            email: user.email,
+            subject: registrationSubject,
+            emailHtml: emailHtml,
+          });
+        } else { 
+          logger.info(`Failed to send reminder email sent to user ${user.email} for this booking ${booking?._id} bcz zoom link was not available.`);
+        }
 
-        await sendEmail({
-          email: user.email,
-          subject: registrationSubject,
-          emailHtml: emailHtml,
-        });
-
-        logger.info(`📧 Reminder email sent to user ${user.email}`);
-
-        // Sending email to teacher
-        const TeacherEmailHtml = TeacherReminder(
-          userName,
-          zoomLink ||
-            booking.zoom?.meetingLink ||
-            "https://akitainakaschoolonline.com/teacher-dashboard/booking",
-          time,
-          teacherName,
-          lessonName
-        );
-
-        await sendEmail({
-          email: teacher.email,
-          subject: registrationSubject,
-          emailHtml: TeacherEmailHtml,
-        });
-
-        logger.info(`📧 Reminder email sent to teacher ${teacher.email}`);
+        if(booking.zoom){ 
+          const TeacherEmailHtml = TeacherReminder(
+            userName,
+            zoomLink ||
+              booking.zoom?.meetingLink ||
+              "https://akitainakaschoolonline.com/teacher-dashboard/booking",
+            time,
+            teacherName,
+            lessonName
+          );
+          await sendEmail({
+            email: teacher.email,
+            subject: registrationSubject,
+            emailHtml: TeacherEmailHtml,
+          });
+          logger.info(`📧 Reminder email sent to teacher ${teacher.email} for this booking ${booking?._id} bcz zoom link was not available.`);
+        } else { 
+          logger.info(`Failed to send reminder email sent to user ${teacher.email} for this booking ${booking?._id}`);
+        }
+        
       }
 
       // Sending lesson done emails to user and teacher
