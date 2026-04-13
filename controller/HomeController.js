@@ -153,14 +153,14 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
 
     const parseSlot = (slot) => {
       const map = {
-        "6 AM - 9 AM":   [6, 9],
-        "9 AM - 12 PM":  [9, 12],
-        "12 PM - 3 PM":  [12, 15],
-        "3 PM - 6 PM":   [15, 18],
-        "6 PM - 9 PM":   [18, 21],
-        "9 PM - 12 AM":  [21, 24],
-        "12 AM - 3 AM":  [0, 3],
-        "3 AM - 6 AM":   [3, 6],
+        "6 AM - 9 AM": [6, 9],
+        "9 AM - 12 PM": [9, 12],
+        "12 PM - 3 PM": [12, 15],
+        "3 PM - 6 PM": [15, 18],
+        "6 PM - 9 PM": [18, 21],
+        "9 PM - 12 AM": [21, 24],
+        "12 AM - 3 AM": [0, 3],
+        "3 AM - 6 AM": [3, 6],
 
         // Legacy fallback (keep until all old data is migrated)
         "6-9": [6, 9],
@@ -276,16 +276,32 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
           totalLessons: lessonInfo?.count || 0,
         };
       })
-      
-    .filter((teacher) => {
+
+      // .filter((teacher) => {
+
+      //   const noAvailabilityFilter = selectedDays.length === 0 && selectedSlots.length === 0;
+
+      //   // ✅ Case: English selected + no availability filters → allow all
+      //   if (isEnglish && noAvailabilityFilter) return true;
+
+      //   // ❌ Default: remove teachers with 0 lessons
+      //   return teacher.totalLessons > 0;
+      // })// Remove teachers with 0 lessons or unmatched user
+      .filter((teacher) => {
+        const teacherId = teacher?.userId?._id?.toString();
         const noAvailabilityFilter = selectedDays.length === 0 && selectedSlots.length === 0;
 
-        // ✅ Case: English selected + no availability filters → allow all
-        if (isEnglish && noAvailabilityFilter) return true;
+        // ✅ Case 1: English only (no availability filter)
+        if (isEnglish && noAvailabilityFilter) {
+          return true;
+        }
 
-        // ❌ Default: remove teachers with 0 lessons
-        return teacher.totalLessons > 0;
-      })// Remove teachers with 0 lessons or unmatched user
+        // ❌ Remove teachers with no lessons
+        if (teacher.totalLessons === 0) return false;
+
+        // ✅ Apply availability filter
+        return matchesAvailability(teacherId);
+      })
 
     if (!finalTeachers.length) {
       return validationErrorResponse(res, "No teacher with lessons found", 400);
@@ -308,7 +324,7 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
       // Case 3: Neither has rank -> sort by createdAt (latest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
-    const unblockedTeacher = finalTeachers.filter((t)=>t?.userId !== null)
+    const unblockedTeacher = finalTeachers.filter((t) => t?.userId !== null)
 
     return successResponse(res, "Teachers fetched with reviews and lessons", 200, unblockedTeacher);
   } catch (error) {
@@ -320,7 +336,7 @@ exports.GetTeachers = catchAsync(async (req, res, next) => {
 exports.GetTeacherVideo = catchAsync(async (req, res, next) => {
   try {
     // Step 1: Get all teachers with userId populated (only where user is verified and not blocked)
-    const teachers = await Teacher.find({featured: {$ne: null}})
+    const teachers = await Teacher.find({ featured: { $ne: null } })
       .populate({
         path: "userId",
         select: "-password",
@@ -605,13 +621,13 @@ exports.Privacy = catchAsync(async (req, res, next) => {
 });
 
 exports.getCourse = catchAsync(async (req, res) => {
-    try {        
-        const data = await AdminCourse.find({is_deleted: false});
-        if (!data) {
-            return errorResponse(res, "No course found", 200);
-        }
-        return successResponse(res, "Courses fetched successfully", 200, data);
-    } catch (error) {
-        return errorResponse(res, error.message || "Internal Server Error", 500);
+  try {
+    const data = await AdminCourse.find({ is_deleted: false });
+    if (!data) {
+      return errorResponse(res, "No course found", 200);
     }
+    return successResponse(res, "Courses fetched successfully", 200, data);
+  } catch (error) {
+    return errorResponse(res, error.message || "Internal Server Error", 500);
+  }
 });
