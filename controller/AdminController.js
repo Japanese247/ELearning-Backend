@@ -332,7 +332,7 @@ exports.AdminBookingsGet = catchAsync(async (req, res) => {
 
 exports.AdminEarning = catchAsync(async (req, res) => {
   try {
-    const { date, search, page, limit = 15 } = req.query;
+    const { date, search, page, limit = 15, exportAll } = req.query;
     const filter = { cancelled: false, isFromBulk: { $ne: true } };
     if (date) {
       const now = new Date();
@@ -379,9 +379,9 @@ exports.AdminEarning = catchAsync(async (req, res) => {
     const perPage = parseInt(limit);
     const totalPages = Math.ceil(totalBookings / perPage);
     const skip = (currentPage - 1) * perPage;
-    let query;
+    let queryBuilder;
     if (search && search.trim() !== "") {
-      query = Bookings.find(filter).sort({ startDateTime: -1 })
+      queryBuilder = Bookings.find(filter).sort({ startDateTime: -1 })
         .populate('StripepaymentId')
         .populate('paypalpaymentId')
         .populate('UserId')
@@ -389,15 +389,18 @@ exports.AdminEarning = catchAsync(async (req, res) => {
         .populate('LessonId');
     }
     else {
-      query = Bookings.find(filter).sort({ startDateTime: -1 })
+      queryBuilder = Bookings.find(filter).sort({ startDateTime: -1 })
         .populate('StripepaymentId')
         .populate('paypalpaymentId')
         .populate('UserId')
         .populate('teacherId')
-        .populate('LessonId').skip(skip).limit(parseInt(limit));
-    }
+        .populate('LessonId');
 
-    let bookings = await query;
+    }
+    if (!exportAll) {
+      queryBuilder = queryBuilder.skip(skip).limit(parseInt(limit));
+    }
+    let bookings = await queryBuilder;
 
     let bulkFilter = {};
     if (filter.createdAt) bulkFilter.createdAt = filter.createdAt;
