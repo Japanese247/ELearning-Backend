@@ -160,7 +160,8 @@ module.exports = () => {
               "https://akitainakaschoolonline.com/student/lessons",
             time,
             teacherName,
-            lessonName
+            lessonName,
+            diffInMinutes
           ); 
           await sendEmail({
             email: user.email,
@@ -186,7 +187,7 @@ module.exports = () => {
             subject: registrationSubject,
             emailHtml: TeacherEmailHtml,
           });
-          logger.info(`📧 Reminder email sent to teacher ${teacher.email} for this booking ${booking?._id} bcz zoom link was not available.`);
+          logger.info(`📧 Reminder email sent to teacher ${teacher.email} for this booking ${booking?._id}.`);
         } else { 
           logger.info(`Failed to send reminder email sent to user ${teacher.email} for this booking ${booking?._id}`);
         }

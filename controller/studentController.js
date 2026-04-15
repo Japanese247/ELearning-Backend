@@ -663,12 +663,16 @@ exports.BulkLessonRedeem = catchAsync(async (req, res) => {
     const teacher = await User.findById({ _id: data?.teacherId });
     logger.info("Paypal Everything done now about to send email");
     logger.info(`Teacher details: ${JSON.stringify(teacher || "")}`);
-    // Send confirmation email to student
     const registrationSubject = "Booking Confirmed 🎉";
     const Username = user?.name;
 
     // Convert to ISO format for moment parsing in email templates
     const utcDateTime = DateTime.fromJSDate(new Date(startUTC), { zone: "utc" });
+    const nowTime = DateTime.utc();
+    const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
+    const diffInMinutes = Math.round(
+      startUTCDateTime.diff(nowTime, "minutes").minutes
+    );
     
     const userTimeISO = user?.time_zone
         ? utcDateTime.setZone(user.time_zone).toISO()
@@ -678,23 +682,34 @@ exports.BulkLessonRedeem = catchAsync(async (req, res) => {
         ? utcDateTime.setZone(teacher.time_zone).toISO()
         : utcDateTime.toISO();
       
-    const emailHtml = BookingSuccess(userTimeISO , Username, teacher?.name);
-    logger.info(`Paypal sending email to student at  ${user?.email}`);
-    await sendEmail({
-      email: user?.email,
-      subject: registrationSubject,
-      emailHtml: emailHtml,
-    });
+    if (diffInMinutes > 30) {
+      const emailHtml = BookingSuccess(userTimeISO, Username, teacher?.name);
+      logger.info(`Paypal sending email to student at  ${user?.email}`);
+      await sendEmail({
+        email: user?.email,
+        subject: registrationSubject,
+        emailHtml: emailHtml,
+      });
 
-    // Send Confirmation email to teacher
-    const TeacherSubject = "New Booking 🎉";
-    const TeacheremailHtml = TeacherBooking(teacherTimeISO, Username, teacher?.name);
-    logger.info(`Bulk booking redeem sending email to teacher at: ${teacher?.email}`);
-    await sendEmail({
-      email: teacher.email,
-      subject: TeacherSubject,
-      emailHtml: TeacheremailHtml,
-    });
+      const TeacherSubject = "New Booking 🎉";
+      const TeacheremailHtml = TeacherBooking(
+        teacherTimeISO,
+        Username,
+        teacher?.name
+      );
+      logger.info(
+        `Bulk booking redeem sending email to teacher at: ${teacher?.email}`
+      );
+      await sendEmail({
+        email: teacher.email,
+        subject: TeacherSubject,
+        emailHtml: TeacheremailHtml,
+      });
+    } else {
+      logger.info(
+        `Skipping booking-confirmation emails for bulk booking because lesson starts in ${diffInMinutes} minutes`
+      );
+    }
     logger.info("Bulk booking redeem successfull!");
   
     successResponse(res, "Special Slots retrieved successfully!", 200);

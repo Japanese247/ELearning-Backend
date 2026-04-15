@@ -317,7 +317,12 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
     const teacher = await User.findById({ _id: teacherId });
     logger.info("Paypal Everything done now about to send email");
     logger.info(`Teacher details: ${JSON.stringify(teacher || "")}`);
-    // Send confirmation email to student
+    const nowTime = DateTime.utc();
+    const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
+    const diffInMinutes = Math.round(
+      startUTCDateTime.diff(nowTime, "minutes").minutes
+    );
+
     const registrationSubject = "Booking Confirmed 🎉";
     const Username = user?.name;
 
@@ -332,23 +337,32 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
         ? utcDateTime.setZone(teacher.time_zone).toISO()
         : utcDateTime.toISO();
       
-    const emailHtml = BookingSuccess(userTimeISO , Username, teacher?.name);
-    logger.info(`Paypal sending email to student at  ${email}`);
-    await sendEmail({
-      email: email,
-      subject: registrationSubject,
-      emailHtml: emailHtml,
-    });
+    if (diffInMinutes > 30) {
+      const emailHtml = BookingSuccess(userTimeISO, Username, teacher?.name);
+      logger.info(`Paypal sending email to student at  ${email}`);
+      await sendEmail({
+        email: email,
+        subject: registrationSubject,
+        emailHtml: emailHtml,
+      });
 
-    // Send Confirmation email to teacher
-    const TeacherSubject = "New Booking 🎉";
-    const TeacheremailHtml = TeacherBooking(teacherTimeISO, Username, teacher?.name);
-    logger.info(`Paypal sending email to teacher at: ${teacher?.email}`);
-    await sendEmail({
-      email: teacher.email,
-      subject: TeacherSubject,
-      emailHtml: TeacheremailHtml,
-    });
+      const TeacherSubject = "New Booking 🎉";
+      const TeacheremailHtml = TeacherBooking(
+        teacherTimeISO,
+        Username,
+        teacher?.name
+      );
+      logger.info(`Paypal sending email to teacher at: ${teacher?.email}`);
+      await sendEmail({
+        email: teacher.email,
+        subject: TeacherSubject,
+        emailHtml: TeacheremailHtml,
+      });
+    } else {
+      logger.info(
+        `Skipping booking-confirmation emails for booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
+      );
+    }
     logger.info("Paypal order created route ran successfully");
     res.status(200).json(savedPayment);
   } catch (error) {
@@ -939,17 +953,29 @@ exports.WalletBookingPayment = catchAsync(async (req, res) => {
       ? utcDateTime.setZone(teacher.time_zone).toISO()
       : utcDateTime.toISO();
 
-    await sendEmail({
-      email,
-      subject: "Booking Confirmed 🎉",
-      emailHtml: BookingSuccess(userTimeISO, user?.name, teacher?.name)
-    });
+    const nowTime = DateTime.utc();
+    const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
+    const diffInMinutes = Math.round(
+      startUTCDateTime.diff(nowTime, "minutes").minutes
+    );
 
-    await sendEmail({
-      email: teacher.email,
-      subject: "New Booking 🎉",
-      emailHtml: TeacherBooking(teacherTimeISO, user?.name, teacher?.name)
-    });
+    if (diffInMinutes > 30) {
+      await sendEmail({
+        email,
+        subject: "Booking Confirmed 🎉",
+        emailHtml: BookingSuccess(userTimeISO, user?.name, teacher?.name),
+      });
+
+      await sendEmail({
+        email: teacher.email,
+        subject: "New Booking 🎉",
+        emailHtml: TeacherBooking(teacherTimeISO, user?.name, teacher?.name),
+      });
+    } else {
+      logger.info(
+        `Skipping booking-confirmation emails for wallet booking ${booking?.[0]?._id} because lesson starts in ${diffInMinutes} minutes`
+      );
+    }
 
     return res.status(200).json({ status: true });
 
