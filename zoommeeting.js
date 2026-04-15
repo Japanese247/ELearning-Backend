@@ -129,9 +129,11 @@ const createZoomMeeting = async (meetingDetails, teacherData, TeacherModel) => {
         },
       }
     );
-    // console.log("response?.data", response?.data);
+    console.log("response?.data", response?.data);
 
     return {
+      join_url: response.data.join_url,
+      start_url: response.data.start_url,
       meeting_url: response.data.join_url,
       meeting_id: response.data.id,
       meetingTime: response.data.start_time,
