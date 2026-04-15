@@ -978,7 +978,7 @@ let readable = current_time.toLocaleString('en-IN', {
 
 app.get("/", (req, res) => {
   res.json({
-    msg: "Hello World",
+    msg: "Hello Elearning",
     status: 200, 
     last_updated_at: readable,
   });
