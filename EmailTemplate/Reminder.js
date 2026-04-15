@@ -23,7 +23,7 @@ module.exports = (userName, link, time, teacherName, lessonName,  diffInMinutes)
                 <p style="margin: 0 0 .5rem;text-align: center;"><a href="${link}" style="background:#55844D;color:#fff;border-radius: 7px;font-size: 1.1rem;text-decoration: none;display: inline-block;padding: .8rem 1.5rem;">
                 ${(diffInMinutes < 31) ? "Join Session" :"View Booking"}
                 </a></p>  
-                </td>
+                </td> 
             </tr>
             <tr> 
               <td style="padding:0;">  
