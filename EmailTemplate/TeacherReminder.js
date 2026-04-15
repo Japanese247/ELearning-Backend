@@ -1,4 +1,4 @@
-module.exports = (userName, link, time, teacherName, lessonName) => {
+module.exports = (userName, link, time, teacherName, lessonName, diffInMinutes) => {
     return `
    <div id="email" style="background: #d9d9d9;padding: 20px 0;">
     <table role="presentation" border="0" cellspacing="0" width="100%" style="font-family: arial;max-width:450px; margin: auto;background-color: #fff;">        
@@ -6,7 +6,7 @@ module.exports = (userName, link, time, teacherName, lessonName) => {
             <td style="padding: .5rem  1rem;text-align: center;"> 
                 <a href="https://www.akitainakaschoolonline.com/" style="text-decoration: none;">
                   <img style="logo.png"  src="https://student-teacher-platform.sgp1.digitaloceanspaces.com/logo.png" alt="Akita Inaka School Online">
-                </a>
+                </a> 
              </td> 
         </tr>
          <tr>
@@ -21,8 +21,8 @@ module.exports = (userName, link, time, teacherName, lessonName) => {
 
                 <p style="font-size: 1rem; font-weight: 400; line-height: 1.5rem; text-align: center;color: #333333;margin: 0 0 1.3rem;">You’re just ${time} away from your session with ${userName}. Get ready!</p>  
                 <p style="margin: 0 0 .5rem;text-align: center;"><a href="${link}" style="background:#55844D;color:#fff;border-radius: 7px;font-size: 1.1rem;text-decoration: none;display: inline-block;padding: .8rem 1.5rem;">
-                ${(time == "30 minutes" || time == "5 minutes") ? "Join Session" :"View Booking"}
-                </a></p>  
+                ${(diffInMinutes < 31) ? "Join Session" :"View Booking"}
+                </a></p>   
                 </td>
             </tr>
             <tr> 
