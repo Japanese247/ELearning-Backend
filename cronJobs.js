@@ -174,12 +174,12 @@ module.exports = () => {
         if(booking.zoom){ 
           const TeacherEmailHtml = TeacherReminder(
             userName, 
-            zoom_start_url || zoomLink ||
+            (zoom_start_url || zoomLink ||
             booking.zoom?.meetingLink ||
-            "https://akitainakaschoolonline.com/teacher-dashboard/booking",
+            "https://akitainakaschoolonline.com/teacher-dashboard/booking"),
             time,
             teacherName,
-            lessonName
+            lessonName,  diffInMinutes
           );
           await sendEmail({
             email: teacher.email,

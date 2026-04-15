@@ -964,10 +964,23 @@ app.get("/api/v1/zoom/oauth-callback", async (req, res) => {
   }
 });
 
+
+let current_time = new Date();
+let readable = current_time.toLocaleString('en-IN', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric'
+});
+
+
 app.get("/", (req, res) => {
   res.json({
     msg: "Hello World",
-    status: 200,
+    status: 200, 
+    last_updated_at: readable,
   });
 });
 
