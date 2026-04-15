@@ -160,7 +160,7 @@ module.exports = () => {
               "https://akitainakaschoolonline.com/student/lessons",
             time,
             teacherName,
-            lessonName
+            lessonName,  diffInMinutes
           ); 
           await sendEmail({
             email: user.email,
