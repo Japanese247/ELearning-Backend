@@ -72,6 +72,7 @@ module.exports = () => {
         }
  
         let zoomLink = null;
+        let zoom_start_url= null;
         async function createBookingLink () { 
           console.log(`Creating Zoom meeting for booking ID: ${booking._id}`);
           logger.info(`Creating Zoom meeting for booking ID: ${booking._id}`);
@@ -117,6 +118,7 @@ module.exports = () => {
           }
 
           zoomLink = result?.meeting_url || "";
+          zoom_start_url = result?.start_url || "";
           // console.log("result",result);
           logger.info(
             "Meeting link generated successfully with",
@@ -129,10 +131,10 @@ module.exports = () => {
             start_url: result?.start_url || "",
           }); 
           const zoomResult = await zoomRecord.save();
-          booking.zoom = zoomResult._id; // Save the Zoom meeting ID in the booking
+          booking.zoom = zoomResult._id; 
           if(result?.start_url){
             await booking.save(); 
-          }
+          } 
         }
 
         if (!booking.zoom) {
@@ -172,7 +174,7 @@ module.exports = () => {
         if(booking.zoom){ 
           const TeacherEmailHtml = TeacherReminder(
             userName, 
-            result?.start_url || zoomLink ||
+            zoom_start_url || zoomLink ||
             booking.zoom?.meetingLink ||
             "https://akitainakaschoolonline.com/teacher-dashboard/booking",
             time,
