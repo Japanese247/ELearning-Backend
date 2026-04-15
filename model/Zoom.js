@@ -10,6 +10,9 @@ const ZoomSchema = mongoose.Schema(
       type: String,
       required: [true, "Meeting Link is required."],
     },
+    start_url: {
+      type: String,
+    },
     download: {
       type: [String],
       default : [],
