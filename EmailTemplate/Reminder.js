@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-module.exports = (userName, link, time, teacherName, lessonName, diffInMinutes) => {
-=======
 module.exports = (userName, link, time, teacherName, lessonName,  diffInMinutes) => {
->>>>>>> 58e77971e775fd5e833939f5f1634dc0f94a0958
     return `
    <div id="email" style="background: #d9d9d9;padding: 20px 0;">
     <table role="presentation" border="0" cellspacing="0" width="100%" style="font-family: arial;max-width:450px; margin: auto;background-color: #fff;">        
