@@ -682,6 +682,21 @@ exports.BulkLessonRedeem = catchAsync(async (req, res) => {
         ? utcDateTime.setZone(teacher.time_zone).toISO()
         : utcDateTime.toISO();
       
+    const TeacherSubject = "New Booking 🎉";
+    const TeacheremailHtml = TeacherBooking(
+      teacherTimeISO,
+      Username,
+      teacher?.name
+    );
+    logger.info(
+      `Bulk booking redeem sending email to teacher at: ${teacher?.email}`
+    );
+    await sendEmail({
+      email: teacher.email,
+      subject: TeacherSubject,
+      emailHtml: TeacheremailHtml,
+    });
+
     if (diffInMinutes > 30) {
       const emailHtml = BookingSuccess(userTimeISO, Username, teacher?.name);
       logger.info(`Paypal sending email to student at  ${user?.email}`);
@@ -690,24 +705,9 @@ exports.BulkLessonRedeem = catchAsync(async (req, res) => {
         subject: registrationSubject,
         emailHtml: emailHtml,
       });
-
-      const TeacherSubject = "New Booking 🎉";
-      const TeacheremailHtml = TeacherBooking(
-        teacherTimeISO,
-        Username,
-        teacher?.name
-      );
-      logger.info(
-        `Bulk booking redeem sending email to teacher at: ${teacher?.email}`
-      );
-      await sendEmail({
-        email: teacher.email,
-        subject: TeacherSubject,
-        emailHtml: TeacheremailHtml,
-      });
     } else {
       logger.info(
-        `Skipping booking-confirmation emails for bulk booking because lesson starts in ${diffInMinutes} minutes`
+        `Skipping booking-confirmation email to student for bulk booking because lesson starts in ${diffInMinutes} minutes`
       );
     }
     logger.info("Bulk booking redeem successfull!");
