@@ -357,6 +357,11 @@ app.post(
         const utcDateTime = DateTime.fromJSDate(new Date(startUTC), {
           zone: "utc",
         });
+        const nowTime = DateTime.utc();
+        const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
+        const diffInMinutes = Math.round(
+          startUTCDateTime.diff(nowTime, "minutes").minutes
+        );
         // console.log("utcDateTime", utcDateTime);
         // console.log("user",user);
         // console.log("teacher",teacher);
@@ -376,23 +381,28 @@ app.post(
           user?.name,
           teacher?.name
         );
-        await sendEmail({
-          email: metadata.email,
-          subject: registrationSubject,
-          emailHtml,
-        });
-        // Send Confirmation email to teacher
-        const TeacherSubject = "New Booking 🎉";
-        const TeacheremailHtml = TeacherBooking(
-          teacherTimeISO,
-          user?.name,
-          teacher?.name
-        );
-        await sendEmail({
-          email: teacher.email,
-          subject: TeacherSubject,
-          emailHtml: TeacheremailHtml,
-        });
+        if (diffInMinutes > 30) {
+          await sendEmail({
+            email: metadata.email,
+            subject: registrationSubject,
+            emailHtml,
+          });
+          const TeacherSubject = "New Booking 🎉";
+          const TeacheremailHtml = TeacherBooking(
+            teacherTimeISO,
+            user?.name,
+            teacher?.name
+          );
+          await sendEmail({
+            email: teacher.email,
+            subject: TeacherSubject,
+            emailHtml: TeacheremailHtml,
+          });
+        } else {
+          logger.info(
+            `Skipping booking-confirmation emails for stripe booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
+          );
+        }
         logger.info(
           "Stripe webhook received successfully. Payment processed and booking with special slot completed."
         );
