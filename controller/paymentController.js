@@ -555,9 +555,11 @@ exports.PaymentCreate = catchAsync(async (req, res) => {
 
     let startUTC, endUTC;
     let sendStudentConfirmation = "true";
+    const isBulkBool = String(isBulk) === "true";
+    const isSpecialBool = String(isSpecial) === "true";
 
-    if(!isBulk){
-      if (isSpecial) {
+    if(!isBulkBool){
+      if (isSpecialBool) {
         startUTC = new Date(startDateTime);
         endUTC = new Date(endDateTime);
       } else {
@@ -628,11 +630,11 @@ exports.PaymentCreate = catchAsync(async (req, res) => {
         amount,
         currency,
         srNo: srNo.toString(),
-        isSpecial,
+        isSpecial: isSpecialBool,
         BookingId,
         IsBonus,
         processingFee,
-        isBulk,
+        isBulk: isBulkBool,
         multipleLessons,
         sendStudentConfirmation,
         rate: rate?.rate || 0,

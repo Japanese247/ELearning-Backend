@@ -278,9 +278,10 @@ app.post(
           return;
         }
         // Bonus Case ends here
+        const isSpecial = String(metadata?.isSpecial) === "true";
         let startUTC, endUTC;
         // Convert times to UTC
-        if (metadata?.isSpecial) {
+        if (isSpecial) {
           startUTC = metadata.startDateTime;
           endUTC = metadata.endDateTime;
         } else {
@@ -328,7 +329,7 @@ app.post(
         const record = await booking.save();
 
         // Updating Specialslot
-        if (metadata?.isSpecial) {
+        if (isSpecial) {
           const studentId = new mongoose.Types.ObjectId(metadata.userId);
           const lessonId = new mongoose.Types.ObjectId(metadata.LessonId);
           const updatedSlot = await SpecialSlot.findOneAndUpdate(
@@ -394,10 +395,19 @@ app.post(
           emailHtml: TeacheremailHtml,
         });
 
-        const shouldSendStudentBookingConfirmedEmail =
+        const sendStudentConfirmationFlag =
           metadata?.sendStudentConfirmation != null
             ? String(metadata.sendStudentConfirmation) === "true"
-            : minutesUntilStart > 30;
+            : true;
+        const shouldSendStudentBookingConfirmedEmail =
+          minutesUntilStart > 30 && sendStudentConfirmationFlag;
+        logger.info(
+          `Stripe booking ${record?._id}: minutesUntilStart=${Math.floor(
+            minutesUntilStart
+          )}, sendStudentConfirmation=${String(
+            metadata?.sendStudentConfirmation
+          )}, shouldSendStudentBookingConfirmedEmail=${shouldSendStudentBookingConfirmedEmail}`
+        );
 
         if (shouldSendStudentBookingConfirmedEmail) {
           await sendEmail({
