@@ -359,9 +359,7 @@ app.post(
         });
         const nowTime = DateTime.utc();
         const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
-        const diffInMinutes = Math.round(
-          startUTCDateTime.diff(nowTime, "minutes").minutes
-        );
+        const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
         // console.log("utcDateTime", utcDateTime);
         // console.log("user",user);
         // console.log("teacher",teacher);
@@ -393,7 +391,7 @@ app.post(
           emailHtml: TeacheremailHtml,
         });
 
-        if (diffInMinutes > 30) {
+        if (minutesUntilStart > 30) {
           await sendEmail({
             email: metadata.email,
             subject: registrationSubject,
@@ -401,7 +399,7 @@ app.post(
           });
         } else {
           logger.info(
-            `Skipping booking-confirmation email to student for stripe booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
+            `Skipping booking-confirmation email to student for stripe booking ${record?._id} because lesson starts in ${Math.floor(minutesUntilStart)} minutes`
           );
         }
         logger.info(

@@ -322,10 +322,8 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
 
     const utcDateTime = DateTime.fromJSDate(new Date(startUTC), { zone: "utc" });
     const nowTime = DateTime.utc();
-    const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
-    const diffInMinutes = Math.round(
-      startUTCDateTime.diff(nowTime, "minutes").minutes
-    );
+    const startUTCDateTime = DateTime.fromJSDate(new Date(record.startDateTime)).toUTC();
+    const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
     
     const userTimeISO = user?.time_zone
         ? utcDateTime.setZone(user.time_zone).toISO()
@@ -335,7 +333,7 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
         ? utcDateTime.setZone(teacher.time_zone).toISO()
         : utcDateTime.toISO();
       
-    if (diffInMinutes > 30) {
+    if (minutesUntilStart > 30) {
       const emailHtml = BookingSuccess(userTimeISO , Username, teacher?.name);
       logger.info(`Paypal sending email to student at  ${email}`);
       await sendEmail({
@@ -345,7 +343,7 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
       });
     } else {
       logger.info(
-        `Skipping booking-confirmation email to student for booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
+        `Skipping booking-confirmation email to student for booking ${record?._id} because lesson starts in ${Math.floor(minutesUntilStart)} minutes`
       );
     }
 
@@ -949,9 +947,7 @@ exports.WalletBookingPayment = catchAsync(async (req, res) => {
 
     const nowTime = DateTime.utc();
     const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
-    const diffInMinutes = Math.round(
-      startUTCDateTime.diff(nowTime, "minutes").minutes
-    );
+    const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
 
     await sendEmail({
       email: teacher.email,
@@ -959,7 +955,7 @@ exports.WalletBookingPayment = catchAsync(async (req, res) => {
       emailHtml: TeacherBooking(teacherTimeISO, user?.name, teacher?.name)
     }); 
 
-    if (diffInMinutes > 30) {
+    if (minutesUntilStart > 30) {
       await sendEmail({
         email,
         subject: "Booking Confirmed 🎉",
@@ -967,7 +963,7 @@ exports.WalletBookingPayment = catchAsync(async (req, res) => {
       });
     } else {
       logger.info(
-        `Skipping booking-confirmation email to student for wallet booking ${booking?.[0]?._id} because lesson starts in ${diffInMinutes} minutes`
+        `Skipping booking-confirmation email to student for wallet booking ${booking?.[0]?._id} because lesson starts in ${Math.floor(minutesUntilStart)} minutes`
       );
     }
 
