@@ -381,26 +381,27 @@ app.post(
           user?.name,
           teacher?.name
         );
+        const TeacherSubject = "New Booking 🎉";
+        const TeacheremailHtml = TeacherBooking(
+          teacherTimeISO,
+          user?.name,
+          teacher?.name
+        );
+        await sendEmail({
+          email: teacher.email,
+          subject: TeacherSubject,
+          emailHtml: TeacheremailHtml,
+        });
+
         if (diffInMinutes > 30) {
           await sendEmail({
             email: metadata.email,
             subject: registrationSubject,
             emailHtml,
           });
-          const TeacherSubject = "New Booking 🎉";
-          const TeacheremailHtml = TeacherBooking(
-            teacherTimeISO,
-            user?.name,
-            teacher?.name
-          );
-          await sendEmail({
-            email: teacher.email,
-            subject: TeacherSubject,
-            emailHtml: TeacheremailHtml,
-          });
         } else {
           logger.info(
-            `Skipping booking-confirmation emails for stripe booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
+            `Skipping booking-confirmation email to student for stripe booking ${record?._id} because lesson starts in ${diffInMinutes} minutes`
           );
         }
         logger.info(
