@@ -358,8 +358,11 @@ app.post(
           zone: "utc",
         });
         const nowTime = DateTime.utc();
-        const startUTCDateTime = DateTime.fromJSDate(new Date(startUTC)).toUTC();
-        const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
+        const minutesUntilStart = DateTime.fromJSDate(
+          new Date(record.startDateTime)
+        )
+          .toUTC()
+          .diff(nowTime, "minutes").minutes;
         // console.log("utcDateTime", utcDateTime);
         // console.log("user",user);
         // console.log("teacher",teacher);
