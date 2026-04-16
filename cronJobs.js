@@ -41,7 +41,6 @@ module.exports = () => {
         .sort({ startDateTime: 1 });
           
 
-      const registrationSubject = "Reminder for Booking ⏰";
       for (const booking of data) {
         const objectId = new mongoose.Types.ObjectId(booking?.teacherId?._id);
         const teacherData = await Teacher.findOne({ userId: objectId });
@@ -132,14 +131,17 @@ module.exports = () => {
           }); 
           const zoomResult = await zoomRecord.save();
           booking.zoom = zoomResult._id; 
-          if(result?.start_url){
-            await booking.save(); 
-          } 
+          await booking.save(); 
         }
 
         if (!booking.zoom) {
           await createBookingLink();
         }
+
+        const studentEmailSubject =
+          diffInMinutes <= 30 ? "Booking Confirmed 🎉" : "Reminder for Booking ⏰";
+        const teacherEmailSubject =
+          diffInMinutes <= 30 ? "New Booking 🎉" : "Reminder for Booking ⏰";
 
         logger.info("Sending email for booking", booking._id);
         const user = booking?.UserId;
@@ -164,7 +166,7 @@ module.exports = () => {
           ); 
           await sendEmail({
             email: user.email,
-            subject: registrationSubject,
+            subject: studentEmailSubject,
             emailHtml: emailHtml,
           });
         } else { 
@@ -183,7 +185,7 @@ module.exports = () => {
           );
           await sendEmail({
             email: teacher.email,
-            subject: registrationSubject,
+            subject: teacherEmailSubject,
             emailHtml: TeacherEmailHtml,
           });
           logger.info(`📧 Reminder email sent to teacher ${teacher.email} for this booking ${booking?._id}.`);
