@@ -138,10 +138,9 @@ module.exports = () => {
           await createBookingLink();
         }
 
-        const studentEmailSubject =
-          diffInMinutes <= 30 ? "Booking Confirmed 🎉" : "Reminder for Booking ⏰";
-        const teacherEmailSubject =
-          diffInMinutes <= 30 ? "New Booking 🎉" : "Reminder for Booking ⏰";
+        // const bookingUpdateSubject =
+        //   diffInMinutes <= 30 ? "Booking Update 📩" : "Reminder for Booking ⏰";
+        const bookingUpdateSubject ="Booking Update 📩";
 
         logger.info("Sending email for booking", booking._id);
         const user = booking?.UserId;
@@ -166,7 +165,7 @@ module.exports = () => {
           ); 
           await sendEmail({
             email: user.email,
-            subject: studentEmailSubject,
+            subject: bookingUpdateSubject,
             emailHtml: emailHtml,
           });
         } else { 
@@ -185,7 +184,7 @@ module.exports = () => {
           );
           await sendEmail({
             email: teacher.email,
-            subject: teacherEmailSubject,
+            subject: bookingUpdateSubject,
             emailHtml: TeacherEmailHtml,
           });
           logger.info(`📧 Reminder email sent to teacher ${teacher.email} for this booking ${booking?._id}.`);
