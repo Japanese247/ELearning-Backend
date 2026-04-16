@@ -324,7 +324,7 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
     const nowTime = DateTime.utc();
     const startUTCDateTime = DateTime.fromJSDate(new Date(record.startDateTime)).toUTC();
     const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
-    
+    console.log("minutesUntil", minutesUntilStart);
     const userTimeISO = user?.time_zone
         ? utcDateTime.setZone(user.time_zone).toISO()
         : utcDateTime.toISO();
