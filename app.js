@@ -394,7 +394,12 @@ app.post(
           emailHtml: TeacheremailHtml,
         });
 
-        if (minutesUntilStart > 30) {
+        const shouldSendStudentBookingConfirmedEmail =
+          metadata?.sendStudentConfirmation != null
+            ? String(metadata.sendStudentConfirmation) === "true"
+            : minutesUntilStart > 30;
+
+        if (shouldSendStudentBookingConfirmedEmail) {
           await sendEmail({
             email: metadata.email,
             subject: registrationSubject,

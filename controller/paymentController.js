@@ -324,7 +324,6 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
     const nowTime = DateTime.utc();
     const startUTCDateTime = DateTime.fromJSDate(new Date(record.startDateTime)).toUTC();
     const minutesUntilStart = startUTCDateTime.diff(nowTime, "minutes").minutes;
-    console.log("minutesUntil", minutesUntilStart);
     const userTimeISO = user?.time_zone
         ? utcDateTime.setZone(user.time_zone).toISO()
         : utcDateTime.toISO();
@@ -555,6 +554,7 @@ exports.PaymentCreate = catchAsync(async (req, res) => {
     } = req.body;
 
     let startUTC, endUTC;
+    let sendStudentConfirmation = "true";
 
     if(!isBulk){
       if (isSpecial) {
@@ -574,6 +574,8 @@ exports.PaymentCreate = catchAsync(async (req, res) => {
           error: "Cannot select a slot that starts in less than 10 minutes or is in the past"
         });
       }
+
+      sendStudentConfirmation = String(timeDiffInMinutes > 30);
 
       const existingBooking = await Bookings.findOne({
         teacherId: new mongoose.Types.ObjectId(teacherId),
@@ -632,6 +634,7 @@ exports.PaymentCreate = catchAsync(async (req, res) => {
         processingFee,
         isBulk,
         multipleLessons,
+        sendStudentConfirmation,
         rate: rate?.rate || 0,
       }
     });
