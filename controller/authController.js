@@ -28,6 +28,7 @@ exports.studentSignup = catchAsync(async (req, res) => {
     if (!email || !password || !role || !name || !time_zone) {
       return errorResponse(res, "All fields are required", 401, "false");
     }
+
     const { cf_turnstile_token } = req.body;
     if (!cf_turnstile_token) {
       return errorResponse(res, "Captcha verification failed", 403);
@@ -38,7 +39,16 @@ exports.studentSignup = catchAsync(async (req, res) => {
       Loggers.warn("[TURNSTILE_FAILED]", result);
       return errorResponse(res, "Captcha verification failed. Please refresh the page and try again.", 403);
     }
-    
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return errorResponse(
+        res,
+        "This email is already registered.",
+        200,
+        false
+      );
+    }
+
     // console.log("req.ip:", req.ip);
     // console.log("x-forwarded-for:", req.headers["x-forwarded-for"]);
     // const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
@@ -321,7 +331,7 @@ exports.GetUser = catchAsync(async (req, res) => {
     userObj.unreadCount = unreadCount || 0;
 
     return successResponse(res, "User Get successfully!", 201, {
-      user:userObj,
+      user: userObj,
     });
   } catch (error) {
     console.error(error);
