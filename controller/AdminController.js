@@ -833,9 +833,9 @@ exports.emulateUser = catchAsync(async (req, res) => {
     if (!user) {
       return errorResponse(res, "User not found", 404);
     }
-    if (!user?.email_verify) {
-      return errorResponse(res, "Cannot emulate users where email is not verified", 200);
-    }
+    // if (!user?.email_verify) {
+    //   return errorResponse(res, "Cannot emulate users where email is not verified", 200);
+    // }
     const token = jwt.sign(
       {
         id: user._id,
