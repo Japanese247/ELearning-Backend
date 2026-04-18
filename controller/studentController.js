@@ -255,6 +255,7 @@ exports.studentDashboard = catchAsync(async (req, res) => {
       UserId: userId,
       startDateTime: { $gt: new Date() },
       cancelled: false,
+
     })
       .sort({ startDateTime: 1 })
       // .limit(1)
@@ -262,6 +263,7 @@ exports.studentDashboard = catchAsync(async (req, res) => {
       .populate('paypalpaymentId')
       .populate('teacherId')
       .populate('LessonId');
+      console.log("boooking data ",data);
 
     return successResponse(res, "Dashboard retrieved successfully", 200, {
       reviews: reviews,
