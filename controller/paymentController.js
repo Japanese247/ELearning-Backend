@@ -517,6 +517,7 @@ exports.PaymentcaptureTipsOrder = catchAsync(async (req, res) => {
     });
 
     const savedPayment = await newPayment.save();
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
     const record = await Bonus.create({
       userId: UserId,
       teacherId,
@@ -524,6 +525,7 @@ exports.PaymentcaptureTipsOrder = catchAsync(async (req, res) => {
       bookingId: BookingId,
       amount: totalAmount,
       currency: "USD",
+      usdToJpyRate: rateDoc?.rate || 0,
       paypalpaymentId: savedPayment?._id,
     });
 

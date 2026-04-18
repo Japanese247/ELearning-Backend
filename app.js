@@ -30,6 +30,7 @@ const logger = require("./utils/Logger");
 const { uploadFileToSpaces } = require("./utils/FileUploader");
 const Loggers = require("./utils/Logger");
 const Bonus = require("./model/Bonus");
+const Currencies = require("./model/Currency");
 const { getValidGoogleClient } = require("./utils/GoogleCalendar");
 
 // ✅ Security Headers
@@ -264,6 +265,7 @@ app.post(
             bookingId: metadata.BookingId,
             amount: metadata.amount,
             currency: pi.currency,
+            usdToJpyRate: Number(metadata?.rate || (await Currencies.findOne({ currency: "JPY" }))?.rate || 0) || 0,
             StripepaymentId: payment._id, // ✅ updated to reflect Stripe
           });
           // Update Booking with Bonus
@@ -296,6 +298,25 @@ app.post(
             .toUTC()
             .toJSDate();
         }
+
+        const existingBooking = await Bookings.findOne({
+          teacherId: metadata.teacherId,
+          UserId: metadata.userId,
+          LessonId: metadata.LessonId,
+          startDateTime: startUTC,
+          endDateTime: endUTC,
+          cancelled: false,
+        });
+        if (existingBooking) {
+          logger.warn(
+            `⚠️ Duplicate booking prevented for stripe payment ${paymentIntentId}: existing booking ${existingBooking._id}`
+          );
+          return res.json({ received: true });
+        }
+
+        const rateDoc = await Currencies.findOne({ currency: "JPY" });
+        const usdToJpyRate = Number(metadata?.rate || rateDoc?.rate || 0) || 0;
+
         // Save payment record
         const payment = new StripePayment({
           srNo: parseInt(metadata.srNo || 1),
@@ -324,7 +345,7 @@ app.post(
           srNo: parseInt(metadata.srNo),
           processingFee: metadata.processingFee || 0,
           notes: metadata.notes || "",
-          usdToJpyRate: metadata?.rate || 0,
+          usdToJpyRate,
         });
         const record = await booking.save();
 
@@ -667,7 +688,7 @@ app.post(
 app.use(express.json({ limit: "2000mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2000mb" }));
 
-const PORT = process.env.REACT_APP_SERVER_DOMAIN || 5000;
+const PORT = process.env.PORT || process.env.REACT_APP_SERVER_DOMAIN || 5000;
 
 app.use("/api", require("./route/userRoutes"));
 app.use("/api", require("./route/messageRoutes"));

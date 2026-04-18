@@ -12,14 +12,15 @@ const Teacher = require("../model/teacher");
 const BulkLesson = require("../model/bulkLesson");
 const SpecialSlot = require("../model/SpecialSlot");
 const Review = require("../model/review");
+const Currencies = require("../model/Currency");
 const mongoose = require('mongoose');
 const sendEmail = require("../utils/EmailMailler");
 const SpecialSlotEmail = require("../EmailTemplate/SpecialSlot");
 const SpecialSlotFreeEmail = require("../EmailTemplate/FreeSpecialSlot");
 const SpecialSlotBulkEmail = require("../EmailTemplate/BulkSpecialSlot");
-const jwt = require("jsonwebtoken");
-const review = require("../model/review");
-const Bonus = require("../model/Bonus");
+const jwt = require("jsonwebtoken"); 
+const review = require("../model/review"); 
+const Bonus = require("../model/Bonus"); 
 const Welcome = require("../EmailTemplate/Welcome");
 const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
@@ -666,100 +667,76 @@ exports.EarningsGet = catchAsync(async (req, res) => {
     }
 
     // Aggregate the earnings
-    // const earnings = await Bookings.aggregate([
-    //   // { $match: { teacherId: objectId, lessonCompletedStudent: true, lessonCompletedTeacher: true } },
-    //   { $match: filter },
-    //   {
-    //     $group: {
-    //       _id: null,
-    //       totalEarnings: { $sum: "$teacherEarning" },
-    //       pendingEarnings: {
-    //         $sum: {
-    //           $cond: [
-    //             { $eq: ["$payoutCreationDate", null] },
-    //             "$teacherEarning",
-    //             0
-    //           ]
-    //         }
-    //       },
-    //       requestedEarnings: {
-    //         $sum: {
-    //           $cond: [
-    //             {
-    //               $and: [
-    //                 { $ne: ["$payoutCreationDate", null] },
-    //                 { $eq: ["$payoutDoneAt", null] }
-    //               ]
-    //             },
-    //             "$teacherEarning",
-    //             0
-    //           ]
-    //         }
-    //       },
-    //       approvedEarnings: {
-    //         $sum: {
-    //           $cond: [
-    //             { $ne: ["$payoutDoneAt", null] },
-    //             "$teacherEarning",
-    //             0
-    //           ]
-    //         }
-    //       }
-    //     }
-    //   }
-    // ]);
-    const earnings = await Bookings.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
+    const fallbackJpyRate = Number(rateDoc?.rate || 0) || 0;
 
-          totalEarnings: {
-            $sum: {
-              $multiply: ["$teacherEarning", "$usdToJpyRate"]
-            }
-          },
-
-          pendingEarnings: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                { $multiply: ["$teacherEarning", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          },
-
-          requestedEarnings: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $ne: ["$payoutCreationDate", null] },
-                    { $eq: ["$payoutDoneAt", null] }
-                  ]
-                },
-                { $multiply: ["$teacherEarning", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          },
-
-          approvedEarnings: {
-            $sum: {
-              $cond: [
-                { $ne: ["$payoutDoneAt", null] },
-                { $multiply: ["$teacherEarning", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          }
-        }
+    const bookingIdsToBackfillRate = [];
+    for (const booking of data) {
+      const currentRate = Number(booking?.usdToJpyRate || 0) || 0;
+      if (currentRate <= 0 && fallbackJpyRate > 0) {
+        booking.usdToJpyRate = fallbackJpyRate;
+        bookingIdsToBackfillRate.push(booking._id);
       }
-    ]);
+    }
+    if (bookingIdsToBackfillRate.length && fallbackJpyRate > 0) {
+      await Bookings.updateMany(
+        { _id: { $in: bookingIdsToBackfillRate }, usdToJpyRate: { $in: [0, null] } },
+        { $set: { usdToJpyRate: fallbackJpyRate } }
+      );
+    }
 
-    // Last paid earning
-   const payoutDone = await Payout.findOne({
+    const bonusIdsToBackfillRate = [];
+    for (const bonusItem of bonusData) {
+      const currentRate = Number(bonusItem?.usdToJpyRate || 0) || 0;
+      if (currentRate <= 0 && fallbackJpyRate > 0) {
+        bonusItem.usdToJpyRate = fallbackJpyRate;
+        bonusIdsToBackfillRate.push(bonusItem._id);
+      }
+    }
+    if (bonusIdsToBackfillRate.length && fallbackJpyRate > 0) {
+      await Bonus.updateMany(
+        { _id: { $in: bonusIdsToBackfillRate }, usdToJpyRate: { $in: [0, null] } },
+        { $set: { usdToJpyRate: fallbackJpyRate } }
+      );
+    }
+
+    const sumJpy = (amountUsd, rate) => {
+      const usd = Number(amountUsd || 0) || 0;
+      const r = Number(rate || 0) || 0;
+      return usd * r;
+    };
+
+    const mainJpyTotals = data.reduce(
+      (acc, b) => {
+        const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
+        const earnedJpy = sumJpy(b?.teacherEarning, rate);
+        acc.totalEarnings += earnedJpy;
+        if (!b?.payoutCreationDate) {
+          acc.pendingEarnings += earnedJpy;
+        } else if (b?.payoutCreationDate && !b?.payoutDoneAt) {
+          acc.requestedEarnings += earnedJpy;
+        }
+        return acc;
+      },
+      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0 }
+    );
+
+    const bonusJpyTotals = bonusData.reduce(
+      (acc, b) => {
+        const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
+        const earnedJpy = sumJpy(b?.amount, rate);
+        acc.totalEarnings += earnedJpy;
+        if (!b?.payoutCreationDate) {
+          acc.pendingEarnings += earnedJpy;
+        } else if (b?.payoutCreationDate && !b?.payoutDoneAt) {
+          acc.requestedEarnings += earnedJpy;
+        }
+        return acc;
+      },
+      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0 }
+    );
+
+    const payoutDone = await Payout.findOne({
       userId: userId,
       Status: "approved"
     }).sort({ createdAt: -1 });
@@ -809,157 +786,35 @@ exports.EarningsGet = catchAsync(async (req, res) => {
     // console.log("earnings",earnings);
     // console.log("bonusEarnings",bonusEarnings);
     
-    const bonusEarnings = await Bonus.aggregate([
-      { $match: bonusFilter },
-      {
-        $group: {
-          _id: null,
-
-          totalEarnings: {
-            $sum: {
-              $multiply: ["$amount", "$usdToJpyRate"]
-            }
-          },
-
-          pendingEarnings: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                { $multiply: ["$amount", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          },
-
-          requestedEarnings: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $ne: ["$payoutCreationDate", null] },
-                    { $eq: ["$payoutDoneAt", null] }
-                  ]
-                },
-                { $multiply: ["$amount", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          },
-
-          approvedEarnings: {
-            $sum: {
-              $cond: [
-                { $ne: ["$payoutDoneAt", null] },
-                { $multiply: ["$amount", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          }
-        }
-      }
-    ]);
-
-    const base = {
-      totalEarnings: 0,
-      pendingEarnings: 0,
-      requestedEarnings: 0,
-      approvedEarnings: 0,
-    };
-
-    const mainEarnings = earnings[0] || base;
-    const bonus = bonusEarnings[0] || base;
-
     const earningsSummary = {
-      totalEarnings: (mainEarnings.totalEarnings || 0) + (bonus.totalEarnings || 0),
-      pendingEarnings: (mainEarnings.pendingEarnings || 0) + (bonus.pendingEarnings || 0),
-      requestedEarnings: (mainEarnings.requestedEarnings || 0) + (bonus.requestedEarnings || 0),
+      totalEarnings: (mainJpyTotals.totalEarnings || 0) + (bonusJpyTotals.totalEarnings || 0),
+      pendingEarnings: (mainJpyTotals.pendingEarnings || 0) + (bonusJpyTotals.pendingEarnings || 0),
+      requestedEarnings: (mainJpyTotals.requestedEarnings || 0) + (bonusJpyTotals.requestedEarnings || 0),
       approvedEarnings: ((payoutDone ? payoutDone?.amountJpy : 0) || 0),
-      // approvedEarnings: (mainEarnings.approvedEarnings || 0) + (bonus.approvedEarnings || 0),
     };
 
     // Get total pending earning
-    const EarningsPending = await Bookings.aggregate([
-      {
-        $match: {
-          teacherId: objectId,
-          lessonCompletedStudent: true,
-          lessonCompletedTeacher: true
-        }
-      },
-      {
-        $group: {
-          _id: null,
+    const totalPendingEarning = data.reduce((sum, b) => {
+      if (!b?.payoutCreationDate) return sum + (Number(b?.teacherEarning || 0) || 0);
+      return sum;
+    }, 0) + bonusData.reduce((sum, b) => {
+      if (!b?.payoutCreationDate) return sum + (Number(b?.amount || 0) || 0);
+      return sum;
+    }, 0);
 
-          // USD (existing logic)
-          pendingEarningsUsd: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                "$teacherEarning",
-                0
-              ]
-            }
-          },
-
-          // JPY (converted per transaction)
-          pendingEarningsJpy: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                { $multiply: ["$teacherEarning", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          }
-        }
+    const totalPendingEarningJpy = data.reduce((sum, b) => {
+      if (!b?.payoutCreationDate) {
+        const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
+        return sum + sumJpy(b?.teacherEarning, rate);
       }
-    ]);
-
-    const bonusPending = await Bonus.aggregate([
-      { $match: { teacherId: objectId } },
-      {
-        $group: {
-          _id: null,
-
-          pendingEarningsUsd: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                "$amount",
-                0
-              ]
-            }
-          },
-
-          pendingEarningsJpy: {
-            $sum: {
-              $cond: [
-                { $eq: ["$payoutCreationDate", null] },
-                { $multiply: ["$amount", "$usdToJpyRate"] },
-                0
-              ]
-            }
-          }
-        }
+      return sum;
+    }, 0) + bonusData.reduce((sum, b) => {
+      if (!b?.payoutCreationDate) {
+        const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
+        return sum + sumJpy(b?.amount, rate);
       }
-    ]);
-
-
-   const base1 = {
-      pendingEarningsUsd: 0,
-      pendingEarningsJpy: 0
-    };
-
-    const mainPendingEarnings = EarningsPending[0] || base1;
-    const bonusPendings = bonusPending[0] || base1;
-
-    const totalPendingEarning =
-      (mainPendingEarnings.pendingEarningsUsd || 0) +
-      (bonusPendings.pendingEarningsUsd || 0);
-
-    const totalPendingEarningJpy =
-      (mainPendingEarnings.pendingEarningsJpy || 0) +
-      (bonusPendings.pendingEarningsJpy || 0);
+      return sum;
+    }, 0);
 
 
     successResponse(res, "User Get successfully!", 200, {
@@ -1469,19 +1324,73 @@ exports.SpecialSlotCancel = catchAsync(async (req, res) => {
     if (!id) {
       return errorResponse(res, "Special Slot ID is required", 400);
     }
-    const data = await SpecialSlot.findById(id)
+    let data = await SpecialSlot.findById(id)
       .populate("student")
       .populate("teacher")
       .populate("lesson");
 
     if (!data) {
-      return errorResponse(res, "Special Slot not found", 404);
+      const bookingById = await Bookings.findOne({
+        _id: id,
+        teacherId: req.user.id,
+        cancelled: false,
+        specialSlotId: { $ne: null },
+      });
+      if (!bookingById) {
+        return errorResponse(res, "Special Slot not found", 404);
+      }
+      data = await SpecialSlot.findById(bookingById.specialSlotId)
+        .populate("student")
+        .populate("teacher")
+        .populate("lesson");
+      if (!data) {
+        return errorResponse(res, "Special Slot not found", 404);
+      }
     }
-     if (data.cancelled) {
-       return successResponse(res, "Special Slot is already cancelled", 200);
-     }
+    if (String(data.teacher?._id || data.teacher) !== String(req.user.id)) {
+      return errorResponse(res, "You are not allowed to cancel this slot", 403);
+    }
+    if (data.cancelled) {
+      return successResponse(res, "Special Slot is already cancelled", 200);
+    }
+    const nowUTC = new Date();
+    if (nowUTC >= new Date(data.startDateTime)) {
+      return errorResponse(
+        res,
+        "You can't cancel this special slot after the lesson has started",
+        400
+      );
+    }
+
+    const booking =
+      (await Bookings.findOne({
+        teacherId: req.user.id,
+        specialSlotId: data._id,
+        cancelled: false,
+      })) ||
+      (await Bookings.findOne({
+        teacherId: req.user.id,
+        UserId: data.student?._id || data.student,
+        LessonId: data.lesson?._id || data.lesson,
+        startDateTime: data.startDateTime,
+        endDateTime: data.endDateTime,
+        cancelled: false,
+      }));
+    if (booking && (booking.lessonCompletedStudent || booking.lessonCompletedTeacher)) {
+      return errorResponse(
+        res,
+        "You can't cancel this special slot because the lesson is already completed",
+        400
+      );
+    }
+
     data.cancelled = true;
     await data.save();
+    if (booking) {
+      booking.cancelled = true;
+      booking.zoom = null;
+      await booking.save();
+    }
 
     return successResponse(res, "Special Slot cancelled successfully", 200);
   } catch (error) {
@@ -1584,6 +1493,7 @@ exports.SpecialSlotwithZeroAmount = catchAsync(async (req, res) => {
       student,
       lesson,
       amount: 0,
+      paymentStatus: "paid",
       startDateTime: startUTC,
       endDateTime: endUTC,
       teacher: req.user.id,
@@ -1605,6 +1515,10 @@ exports.SpecialSlotwithZeroAmount = catchAsync(async (req, res) => {
       startDateTime: startUTC,
       endDateTime: endUTC,
       processingFee: 0,
+      lessonCompletedStudent: false,
+      lessonCompletedTeacher: false,
+      isSpecial: true,
+      specialSlotId: slotResult._id,
     });
 
     await Bookingsave.save();

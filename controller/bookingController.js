@@ -228,12 +228,51 @@ exports.GetBookings = catchAsync(async (req, res) => {
       .populate("teacherId")
       .populate("UserId")
       .populate("LessonId")
+      .populate("StripepaymentId")
+      .populate("paypalpaymentId")
       .populate("zoom")
       .sort({ startDateTime: 1 });
 
     if (!data || data.length === 0) {
       return errorResponse(res, "No bookings found", 200);
     }
+
+    const dedupedMap = new Map();
+    for (const booking of data) {
+      const key = [
+        String(booking?.teacherId?._id || booking?.teacherId || ""),
+        String(booking?.LessonId?._id || booking?.LessonId || ""),
+        new Date(booking.startDateTime).toISOString(),
+        new Date(booking.endDateTime).toISOString(),
+      ].join("|");
+
+      const existing = dedupedMap.get(key);
+      if (!existing) {
+        dedupedMap.set(key, booking);
+        continue;
+      }
+
+      const existingHasZoom = Boolean(existing?.zoom?._id || existing?.zoom);
+      const currentHasZoom = Boolean(booking?.zoom?._id || booking?.zoom);
+      if (!existingHasZoom && currentHasZoom) {
+        dedupedMap.set(key, booking);
+        continue;
+      }
+
+      const existingCreatedAt = existing?.createdAt
+        ? new Date(existing.createdAt).getTime()
+        : 0;
+      const currentCreatedAt = booking?.createdAt
+        ? new Date(booking.createdAt).getTime()
+        : 0;
+      if (currentCreatedAt > existingCreatedAt) {
+        dedupedMap.set(key, booking);
+      }
+    }
+
+    data = Array.from(dedupedMap.values()).sort(
+      (a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime()
+    );
 
     return successResponse(res, "Bookings retrieved successfully", 200, data);
   } catch (error) {
