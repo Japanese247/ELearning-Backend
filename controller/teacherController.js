@@ -673,14 +673,24 @@ exports.EarningsGet = catchAsync(async (req, res) => {
     const bookingIdsToBackfillRate = [];
     for (const booking of data) {
       const currentRate = Number(booking?.usdToJpyRate || 0) || 0;
-      if (currentRate <= 0 && fallbackJpyRate > 0) {
+      if (
+        fallbackJpyRate > 0 &&
+        (currentRate <= 0 || currentRate < 90 || currentRate > 300)
+      ) {
         booking.usdToJpyRate = fallbackJpyRate;
         bookingIdsToBackfillRate.push(booking._id);
       }
     }
     if (bookingIdsToBackfillRate.length && fallbackJpyRate > 0) {
       await Bookings.updateMany(
-        { _id: { $in: bookingIdsToBackfillRate }, usdToJpyRate: { $in: [0, null] } },
+        {
+          _id: { $in: bookingIdsToBackfillRate },
+          $or: [
+            { usdToJpyRate: { $in: [0, null] } },
+            { usdToJpyRate: { $lt: 90 } },
+            { usdToJpyRate: { $gt: 300 } },
+          ],
+        },
         { $set: { usdToJpyRate: fallbackJpyRate } }
       );
     }
@@ -688,14 +698,24 @@ exports.EarningsGet = catchAsync(async (req, res) => {
     const bonusIdsToBackfillRate = [];
     for (const bonusItem of bonusData) {
       const currentRate = Number(bonusItem?.usdToJpyRate || 0) || 0;
-      if (currentRate <= 0 && fallbackJpyRate > 0) {
+      if (
+        fallbackJpyRate > 0 &&
+        (currentRate <= 0 || currentRate < 90 || currentRate > 300)
+      ) {
         bonusItem.usdToJpyRate = fallbackJpyRate;
         bonusIdsToBackfillRate.push(bonusItem._id);
       }
     }
     if (bonusIdsToBackfillRate.length && fallbackJpyRate > 0) {
       await Bonus.updateMany(
-        { _id: { $in: bonusIdsToBackfillRate }, usdToJpyRate: { $in: [0, null] } },
+        {
+          _id: { $in: bonusIdsToBackfillRate },
+          $or: [
+            { usdToJpyRate: { $in: [0, null] } },
+            { usdToJpyRate: { $lt: 90 } },
+            { usdToJpyRate: { $gt: 300 } },
+          ],
+        },
         { $set: { usdToJpyRate: fallbackJpyRate } }
       );
     }
@@ -790,7 +810,7 @@ exports.EarningsGet = catchAsync(async (req, res) => {
       totalEarnings: (mainJpyTotals.totalEarnings || 0) + (bonusJpyTotals.totalEarnings || 0),
       pendingEarnings: (mainJpyTotals.pendingEarnings || 0) + (bonusJpyTotals.pendingEarnings || 0),
       requestedEarnings: (mainJpyTotals.requestedEarnings || 0) + (bonusJpyTotals.requestedEarnings || 0),
-      approvedEarnings: ((payoutDone ? payoutDone?.amountJpy : 0) || 0),
+      approvedEarnings: ((payoutDone ? payoutDone?.amountInJpy : 0) || 0),
     };
 
     // Get total pending earning

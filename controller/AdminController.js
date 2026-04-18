@@ -9,6 +9,7 @@ const Lessons = require("../model/lesson");
 const Review = require("../model/review");
 const Bonus = require("../model/Bonus");
 const Bank = require("../model/Bank");
+const Currency = require("../model/Currency");
 const AdminCourse = require("../model/AdminCourse");
 const TeacherApprove = require("../EmailTemplate/TeacherApprove");
 const AdminBulkUpdateTemplate = require("../EmailTemplate/AdminBulkUpdateTemplate");
@@ -194,6 +195,37 @@ exports.PayoutListing = catchAsync(async (req, res) => {
           regex.test(teacherName)
         );
       });
+    }
+
+    const rateDoc = await Currency.findOne({ currency: "JPY" });
+    const currentJpyRate = Number(rateDoc?.rate || 0) || 0;
+    if (currentJpyRate > 0) {
+      const payoutIdsToFix = [];
+      for (const payout of result) {
+        if (payout?.Status !== "pending") continue;
+        const usd = Number(payout?.amount || 0) || 0;
+        const jpy = Number(payout?.amountInJpy || 0) || 0;
+        if (!usd) continue;
+        const effectiveRate = jpy / usd;
+        if (!jpy || effectiveRate < 90 || effectiveRate > 300) {
+          payout.amountInJpy = Math.round(usd * currentJpyRate);
+          payoutIdsToFix.push(payout._id);
+        }
+      }
+      if (payoutIdsToFix.length) {
+        await Payout.updateMany(
+          { _id: { $in: payoutIdsToFix }, Status: "pending" },
+          [
+            {
+              $set: {
+                amountInJpy: {
+                  $round: [{ $multiply: ["$amount", currentJpyRate] }, 0],
+                },
+              },
+            },
+          ]
+        );
+      }
     }
 
     return res.status(200).json({

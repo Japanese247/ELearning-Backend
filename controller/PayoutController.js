@@ -2,12 +2,13 @@ const Bank = require("../model/Bank");
 const Bookings = require("../model/booking");
 const Bonus = require("../model/Bonus");
 const Payout = require("../model/Payout");
+const Currency = require("../model/Currency");
 const catchAsync = require("../utils/catchAsync");
 const Loggers = require("../utils/Logger");
 
 exports.PayoutAdd = catchAsync(async (req, res) => {
   const userId = req?.user?.id;
-  const { amount, amountInJpy } = req.body;
+  const { amount } = req.body;
 
   if (!userId) {
     return res.status(400).json({
@@ -16,10 +17,10 @@ exports.PayoutAdd = catchAsync(async (req, res) => {
     });
   }
   
-  if (!amount || !amountInJpy) {
+  if (!amount) {
     return res.status(400).json({
       status: false,
-      message: "Amount and amount in JPY are required.",
+      message: "Amount is required.",
     });
   }
   
@@ -33,6 +34,15 @@ exports.PayoutAdd = catchAsync(async (req, res) => {
   
 
   const time = Date.now();
+  const rateDoc = await Currency.findOne({ currency: "JPY" });
+  const usdToJpyRate = Number(rateDoc?.rate || 0) || 0;
+  if (!usdToJpyRate) {
+    return res.status(500).json({
+      status: false,
+      message: "JPY conversion rate is not available. Please try again later.",
+    });
+  }
+  const computedAmountInJpy = Math.round((Number(amount) || 0) * usdToJpyRate);
 
   const bookings = await Bookings.updateMany(
     {
@@ -63,7 +73,7 @@ exports.PayoutAdd = catchAsync(async (req, res) => {
     const record = new Payout({
       BankId: Banks._id,
       amount,
-      amountInJpy,
+      amountInJpy: computedAmountInJpy,
       userId,
       createdAt: time,
     });

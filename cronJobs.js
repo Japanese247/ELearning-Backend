@@ -518,11 +518,17 @@ module.exports = () => {
   cron.schedule('0 6,18 * * *', async () => {
     try {
       console.log('⏰ Currency update cron job triggered!');
-      const emailHtml = currency('Success', true, '', 'May 29, 2025 11:25 AM');
       const record = await updateCurrencyRatesJob();
+      const ok = Boolean(record);
+      const emailHtml = currency(
+        ok ? "Success" : "Failed",
+        ok,
+        ok ? "" : "Failed to update currency rates",
+        new Date().toISOString()
+      );
       await sendEmail({
         email: "ankit.jain@internetbusinesssolutionsindia.com",
-        subject: 'Currency Rate Update - Success',
+        subject: ok ? "Currency Rate Update - Success" : "Currency Rate Update - Failed",
         emailHtml: emailHtml,
       });
     } catch (err) {
