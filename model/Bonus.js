@@ -42,6 +42,10 @@ const bonusSchema = new  mongoose.Schema({
         type: Number,
         default: 0
     },
+    usdToJpyRate: {
+      type: Number,
+      default: 0,
+    },
     payoutCreationDate: {
       type: Date,
       default: null,
