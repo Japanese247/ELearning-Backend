@@ -204,16 +204,28 @@ app.post(
             payment_status: pi.status,
           });
           logger.info(`Stripe payment saved for bulk lesson, paymentId: ${JSON.stringify(payment || "")}`);
-          const teacherEarnings = (pi.amount / 100 - metadata.processingFee) * 0.9;
+          const totalAmount = Number(pi.amount / 100) || 0;
+          const processingFee = Number(metadata.processingFee || 0) || 0;
+          const bulkLessonDoc = await Lesson.findById(metadata?.LessonId).select("price");
+          const bulkUnitPrice = Number(bulkLessonDoc?.price || 0) || 0;
+          const baseAmount =
+            bulkUnitPrice > 0 && multipleLessons > 0
+              ? bulkUnitPrice * multipleLessons
+              : Math.max(0, totalAmount - processingFee);
+          const teacherEarnings = Math.round(baseAmount * 90) / 100;
+          const adminCommission = Math.round(baseAmount * 10) / 100;
+          const rateDoc = await Currencies.findOne({ currency: "JPY" });
+          const usdToJpyRate = Number(metadata?.rate || rateDoc?.rate || 0) || 0;
           const bulkLesson = new BulkLessons({
             teacherId:  metadata.teacherId,
             UserId: metadata.userId,
             LessonId: metadata.LessonId,
             StripepaymentId: payment._id,
-            totalAmount: pi.amount / 100 || metadata.amount,
+            totalAmount: totalAmount || metadata.amount,
             teacherEarning: teacherEarnings || 0,
-            adminCommission: metadata.adminCommission,
-            processingFee: metadata.processingFee || 0,
+            adminCommission,
+            processingFee,
+            usdToJpyRate,
             totalLessons: metadata.multipleLessons || 0,
             lessonsRemaining: metadata.multipleLessons || 0,
           });
@@ -329,21 +341,31 @@ app.post(
           payment_status: pi.status,
         });
         const savedPayment = await payment.save();
-        const teacherEarning = (pi.amount / 100 - metadata.processingFee) * 0.9; // 90% to teacher, 10% to admin as discussed with client
+        const totalAmount = Number(pi.amount / 100) || 0;
+        const processingFee = Number(metadata.processingFee || 0) || 0;
+        const lessonDoc = await Lesson.findById(metadata?.LessonId).select("price");
+        const lessonPrice = Number(lessonDoc?.price || 0) || 0;
+        const baseAmount = isSpecial
+          ? Math.max(0, totalAmount - processingFee)
+          : lessonPrice > 0
+          ? lessonPrice
+          : Math.max(0, totalAmount - processingFee);
+        const teacherEarning = Math.round(baseAmount * 90) / 100; // 90% of lesson price
+        const adminCommission = Math.round(baseAmount * 10) / 100;
         // Save booking record
         const booking = new Bookings({
           teacherId: metadata.teacherId,
           UserId: metadata.userId,
           teacherEarning,
-          adminCommission: metadata.adminCommission,
+          adminCommission,
           LessonId: metadata.LessonId,
           StripepaymentId: savedPayment._id,
           startDateTime: startUTC,
           endDateTime: endUTC,
           currency: pi.currency,
-          totalAmount: pi.amount / 100,
+          totalAmount,
           srNo: parseInt(metadata.srNo),
-          processingFee: metadata.processingFee || 0,
+          processingFee,
           notes: metadata.notes || "",
           usdToJpyRate,
         });

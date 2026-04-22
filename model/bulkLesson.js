@@ -41,6 +41,10 @@ const bulkLessonSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Processing Fee is required"],
     },
+    usdToJpyRate: {
+      type: Number,
+      default: 0,
+    },
     totalLessons: {
       type: Number,
       required: [true, "Total lessons are required"],

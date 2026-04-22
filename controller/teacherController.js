@@ -641,6 +641,43 @@ exports.EarningsGet = catchAsync(async (req, res) => {
       return errorResponse(res, "Data not Found", 401);
     }
 
+    const bookingEarningFixOps = [];
+    for (const booking of data) {
+      if (booking?.cancelled) continue;
+      if (booking?.isSpecial) continue;
+      const lessonPrice = Number(booking?.LessonId?.price || 0) || 0;
+      if (!lessonPrice) continue;
+      const totalAmount = Number(booking?.totalAmount || 0) || 0;
+      const processingFee = Number(booking?.processingFee || 0) || 0;
+      const baseApprox = totalAmount - processingFee;
+      if (Math.abs(baseApprox - lessonPrice) > 0.02) continue;
+      const expectedTeacherEarning = Math.round(lessonPrice * 90) / 100;
+      const expectedAdminCommission = Math.round(lessonPrice * 10) / 100;
+      const currentTeacherEarning = Number(booking?.teacherEarning || 0) || 0;
+      const currentAdminCommission = Number(booking?.adminCommission || 0) || 0;
+      if (
+        Math.abs(currentTeacherEarning - expectedTeacherEarning) >= 0.01 ||
+        Math.abs(currentAdminCommission - expectedAdminCommission) >= 0.01
+      ) {
+        booking.teacherEarning = expectedTeacherEarning;
+        booking.adminCommission = expectedAdminCommission;
+        bookingEarningFixOps.push({
+          updateOne: {
+            filter: { _id: booking._id },
+            update: {
+              $set: {
+                teacherEarning: expectedTeacherEarning,
+                adminCommission: expectedAdminCommission,
+              },
+            },
+          },
+        });
+      }
+    }
+    if (bookingEarningFixOps.length) {
+      await Bookings.bulkWrite(bookingEarningFixOps);
+    }
+
     // Get detailed booking data
     let bonusData = await Bonus.find(bonusFilter)
       .sort({ startDateTime: -1 })
@@ -731,14 +768,16 @@ exports.EarningsGet = catchAsync(async (req, res) => {
         const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
         const earnedJpy = sumJpy(b?.teacherEarning, rate);
         acc.totalEarnings += earnedJpy;
-        if (!b?.payoutCreationDate) {
-          acc.pendingEarnings += earnedJpy;
-        } else if (b?.payoutCreationDate && !b?.payoutDoneAt) {
+        if (b?.payoutDoneAt) {
+          acc.approvedEarnings += earnedJpy;
+        } else if (b?.payoutCreationDate) {
           acc.requestedEarnings += earnedJpy;
+        } else {
+          acc.pendingEarnings += earnedJpy;
         }
         return acc;
       },
-      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0 }
+      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0, approvedEarnings: 0 }
     );
 
     const bonusJpyTotals = bonusData.reduce(
@@ -746,20 +785,18 @@ exports.EarningsGet = catchAsync(async (req, res) => {
         const rate = Number(b?.usdToJpyRate || fallbackJpyRate || 0) || 0;
         const earnedJpy = sumJpy(b?.amount, rate);
         acc.totalEarnings += earnedJpy;
-        if (!b?.payoutCreationDate) {
-          acc.pendingEarnings += earnedJpy;
-        } else if (b?.payoutCreationDate && !b?.payoutDoneAt) {
+        if (b?.payoutDoneAt) {
+          acc.approvedEarnings += earnedJpy;
+        } else if (b?.payoutCreationDate) {
           acc.requestedEarnings += earnedJpy;
+        } else {
+          acc.pendingEarnings += earnedJpy;
         }
         return acc;
       },
-      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0 }
+      { totalEarnings: 0, pendingEarnings: 0, requestedEarnings: 0, approvedEarnings: 0 }
     );
 
-    const payoutDone = await Payout.findOne({
-      userId: userId,
-      Status: "approved"
-    }).sort({ createdAt: -1 });
 
     // const bonusEarnings = await Bonus.aggregate([
     //   { $match: bonusFilter },
@@ -810,7 +847,7 @@ exports.EarningsGet = catchAsync(async (req, res) => {
       totalEarnings: (mainJpyTotals.totalEarnings || 0) + (bonusJpyTotals.totalEarnings || 0),
       pendingEarnings: (mainJpyTotals.pendingEarnings || 0) + (bonusJpyTotals.pendingEarnings || 0),
       requestedEarnings: (mainJpyTotals.requestedEarnings || 0) + (bonusJpyTotals.requestedEarnings || 0),
-      approvedEarnings: ((payoutDone ? payoutDone?.amountInJpy : 0) || 0),
+      approvedEarnings: (mainJpyTotals.approvedEarnings || 0) + (bonusJpyTotals.approvedEarnings || 0),
     };
 
     // Get total pending earning
@@ -1692,6 +1729,21 @@ exports.SpecialSlotUsingBulk = catchAsync(async (req, res) => {
       return errorResponse(res, "No bulk lesson credits available", 400);
     }
 
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
+    const fallbackJpyRate = Number(rateDoc?.rate || 0) || 0;
+    let usdToJpyRate = Number(bulkRecord?.usdToJpyRate || 0) || 0;
+    if (
+      fallbackJpyRate > 0 &&
+      (usdToJpyRate <= 0 || usdToJpyRate < 90 || usdToJpyRate > 300)
+    ) {
+      usdToJpyRate = fallbackJpyRate;
+      await BulkLesson.updateOne(
+        { _id: bulkRecord._id },
+        { $set: { usdToJpyRate: fallbackJpyRate } },
+        { session }
+      );
+    }
+
     // console.log("bulkRecord", bulkRecord);
 
     // 🆕 Create Special Slot
@@ -1725,6 +1777,7 @@ exports.SpecialSlotUsingBulk = catchAsync(async (req, res) => {
           teacherEarning: bulkRecord?.teacherEarning/bulkRecord?.totalLessons || 0,
           adminCommission: bulkRecord?.adminCommission/bulkRecord?.totalLessons || 0,
           processingFee: bulkRecord?.processingFee/bulkRecord?.totalLessons || 0,
+          usdToJpyRate,
           isSpecial: true,
           isFromBulk: true,
           bulkId: bulkRecord._id,
@@ -2073,6 +2126,33 @@ exports.TeacherBulkLessonList = catchAsync(async (req, res) => {
     //   });
     // }
     // console.log("data", data);
+
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
+    const fallbackJpyRate = Number(rateDoc?.rate || 0) || 0;
+    const payoutIdsToBackfillRate = [];
+    for (const item of data) {
+      const currentRate = Number(item?.usdToJpyRate || 0) || 0;
+      if (
+        fallbackJpyRate > 0 &&
+        (currentRate <= 0 || currentRate < 90 || currentRate > 300)
+      ) {
+        item.usdToJpyRate = fallbackJpyRate;
+        payoutIdsToBackfillRate.push(item._id);
+      }
+    }
+    if (payoutIdsToBackfillRate.length && fallbackJpyRate > 0) {
+      await BulkLesson.updateMany(
+        {
+          _id: { $in: payoutIdsToBackfillRate },
+          $or: [
+            { usdToJpyRate: { $in: [0, null] } },
+            { usdToJpyRate: { $lt: 90 } },
+            { usdToJpyRate: { $gt: 300 } },
+          ],
+        },
+        { $set: { usdToJpyRate: fallbackJpyRate } }
+      );
+    }
 
     successResponse(res, "Special Slots retrieved successfully!", 200, data);
   } catch (error) {

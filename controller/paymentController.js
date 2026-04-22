@@ -134,6 +134,16 @@ async function handleBulkBooking(data) {
     logger.info(`PayPal payment saved for bulk lesson, paymentId: ${JSON.stringify(savedPayment || "")}`);
 
     // Bulk lesson record creation
+    const bulkLessonDoc = await Lesson.findById(LessonId).select("price");
+    const bulkUnitPrice = Number(bulkLessonDoc?.price || 0) || 0;
+    const baseAmount =
+      bulkUnitPrice > 0 && Number(multipleLessons || 0) > 0
+        ? bulkUnitPrice * Number(multipleLessons || 0)
+        : Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0));
+    const teacherEarning = Math.round(baseAmount * 90) / 100;
+    const adminCommissionComputed = Math.round(baseAmount * 10) / 100;
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
+    const usdToJpyRate = Number(rateDoc?.rate || 0) || 0;
     const bulkLesson = new BulkLessons({
       teacherId,
       UserId,
@@ -141,9 +151,10 @@ async function handleBulkBooking(data) {
       paypalpaymentId: savedPayment?._id,
       StripepaymentId: null,
       totalAmount,
-      teacherEarning: (totalAmount - processingFee) * 0.90 || 0,
-      adminCommission,
+      teacherEarning: teacherEarning || 0,
+      adminCommission: adminCommissionComputed,
       processingFee,
+      usdToJpyRate,
       totalLessons: multipleLessons,
       lessonsRemaining: multipleLessons,
     });
@@ -276,11 +287,19 @@ exports.PaymentcaptureOrder = catchAsync(async (req, res) => {
       endUTC = DateTime.fromISO(endDateTime, { zone: timezone }).toUTC().toJSDate();
     }
     const rate = await Currencies.findOne({ currency: "JPY" });
-    const teacherEarning = (totalAmount - processingFee) * 0.90; // 90% to teacher, 10% to admin as discussed with client
+    const lessonDoc = await Lesson.findById(LessonId).select("price");
+    const lessonPrice = Number(lessonDoc?.price || 0) || 0;
+    const baseAmount = isSpecialSlot
+      ? Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0))
+      : lessonPrice > 0
+      ? lessonPrice
+      : Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0));
+    const teacherEarning = Math.round(baseAmount * 90) / 100; // 90% of lesson fee
+    const adminCommissionComputed = Math.round(baseAmount * 10) / 100;
     const Bookingsave = new Bookings({
       teacherId,
       totalAmount,
-      adminCommission,
+      adminCommission: adminCommissionComputed,
       teacherEarning,
       UserId: UserId,
       LessonId,
@@ -730,6 +749,16 @@ async function handleBulkWalletBooking(data) {
     await wallet.save({ session });
 
     // 3️⃣ Create bulk lesson record
+    const bulkLessonDoc = await Lesson.findById(LessonId).select("price");
+    const bulkUnitPrice = Number(bulkLessonDoc?.price || 0) || 0;
+    const baseAmount =
+      bulkUnitPrice > 0 && Number(multipleLessons || 0) > 0
+        ? bulkUnitPrice * Number(multipleLessons || 0)
+        : Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0));
+    const teacherEarning = Math.round(baseAmount * 90) / 100;
+    const adminCommissionComputed = Math.round(baseAmount * 10) / 100;
+    const rateDoc = await Currencies.findOne({ currency: "JPY" });
+    const usdToJpyRate = Number(rateDoc?.rate || 0) || 0;
     const bulkLesson = await BulkLessons.create([{
       teacherId,
       UserId,
@@ -737,9 +766,10 @@ async function handleBulkWalletBooking(data) {
       paypalpaymentId: null,
       StripepaymentId: null,
       totalAmount,
-      teacherEarning: (totalAmount - processingFee) * 0.90,
-      adminCommission,
+      teacherEarning: teacherEarning || 0,
+      adminCommission: adminCommissionComputed,
       processingFee,
+      usdToJpyRate,
       totalLessons: multipleLessons,
       lessonsRemaining: multipleLessons,
       isFromWallet: true,
@@ -879,13 +909,21 @@ exports.WalletBookingPayment = catchAsync(async (req, res) => {
     await wallet.save({ session });
 
     // 🔥 CREATE BOOKING
-    const teacherEarning = (totalAmount - processingFee) * 0.90;
+    const lessonDoc = await Lesson.findById(LessonId).select("price");
+    const lessonPrice = Number(lessonDoc?.price || 0) || 0;
+    const baseAmount = isSpecial
+      ? Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0))
+      : lessonPrice > 0
+      ? lessonPrice
+      : Math.max(0, Number(totalAmount || 0) - Number(processingFee || 0));
+    const teacherEarning = Math.round(baseAmount * 90) / 100;
+    const adminCommissionComputed = Math.round(baseAmount * 10) / 100;
 
     const rate = await Currencies.findOne({ currency: "JPY" });
     const booking = await Bookings.create([{
       teacherId,
       totalAmount,
-      adminCommission,
+      adminCommission: adminCommissionComputed,
       teacherEarning,
       UserId,
       LessonId,
