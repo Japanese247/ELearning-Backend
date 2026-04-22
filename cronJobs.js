@@ -30,7 +30,7 @@ module.exports = () => {
       const endNow = DateTime.utc().startOf("minute"); // e.g., 13:42:00
       console.log("crons started");
       const data = await Bookings.find({
-        startDateTime: { $gt: now },
+        endDateTime: { $gt: now },
         cancelled: false,
         // _id: "68924c90795dd1d2abaee90a",
       })
@@ -47,9 +47,14 @@ module.exports = () => {
         // console.log("TeacherData",teacherData);
         const nowTime = DateTime.utc();
         const startUTC = DateTime.fromJSDate(booking.startDateTime).toUTC();
+        const endUTC = DateTime.fromJSDate(booking.endDateTime).toUTC();
         const diffInMinutes = Math.round(
           startUTC.diff(nowTime, "minutes").minutes
         );
+        const minutesUntilEnd = Math.round(endUTC.diff(nowTime, "minutes").minutes);
+        if (minutesUntilEnd <= 0) {
+          continue;
+        }
         // console.log("startUTC",startUTC);
         // console.log("nowTime",nowTime);
         // console.log("diffInMinutes",diffInMinutes);
@@ -58,11 +63,13 @@ module.exports = () => {
         // else if (diffInMinutes === 120) time = "2 hours";
         // else if (diffInMinutes === 30) time = "30 minutes";
          
-        if (diffInMinutes <= 30 && diffInMinutes >= 0 && !booking.zoom) {
-          if(diffInMinutes > 1){
+        if (diffInMinutes <= 30 && !booking.zoom) {
+          if (diffInMinutes > 1) {
             time = `${diffInMinutes} minutes`;
-          } else { 
+          } else if (diffInMinutes >= 0) {
             time = `just a moment`;
+          } else {
+            time = `in progress`;
           }
           console.log("crons executed for zoom link");
         } else {

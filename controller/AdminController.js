@@ -329,7 +329,7 @@ exports.PayoutAcceptorReject = catchAsync(async (req, res) => {
 exports.AdminBookingsGet = catchAsync(async (req, res) => {
   try {
     const { search } = req.query;
-    let data = await Bookings.find({}).sort({ startDateTime: 1 })
+    let data = await Bookings.find({}).sort({ startDateTime: -1 })
       .populate('StripepaymentId')
       .populate('paypalpaymentId')
       .populate('UserId')
@@ -348,10 +348,12 @@ exports.AdminBookingsGet = catchAsync(async (req, res) => {
       data = data.filter((item) => {
         const lessonTitle = item.LessonId?.title || "";
         const teacherName = item?.teacherId?.name || "";
+        const studentName = item?.UserId?.name || "";
 
         return (
           regex.test(lessonTitle) ||
-          regex.test(teacherName)
+          regex.test(teacherName) ||
+          regex.test(studentName)
         );
       });
     }

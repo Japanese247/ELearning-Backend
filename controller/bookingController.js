@@ -230,7 +230,7 @@ exports.GetBookings = catchAsync(async (req, res) => {
       .populate("LessonId")
       .populate("StripepaymentId")
       .populate("paypalpaymentId")
-      .populate("zoom")
+      .populate({ path: "zoom", select: "meetingId meetingLink download chat" })
       .sort({ startDateTime: 1 });
 
     if (!data || data.length === 0) {
